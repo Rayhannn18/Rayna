@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      // User documents contain the public pairing profile fields needed to
+      // complete a pairing transaction.
+      allow read: if signedIn();
+      allow create: if isOwner(userId);
+      allow update: if (
+        isOwner(userId)
+        || (
+          signedIn()
+          && (
+            (
+              !resource.data.keys().hasAny(['partnerUid'])
+              && request.resource.data.keys().hasAny(['partnerUid'])
+              && request.resource.data.partnerUid == request.auth.uid
+            )
+            || (
+              resource.data.keys().hasAny(['partnerUid'])
+              && resource.data.partnerUid == request.auth.uid
+              && !request.resource.data.keys().hasAny(['partnerUid'])
+            )
+          )
+        )
+      ) && request.resource.data.uid == resource.data.uid;
+    }
+
+    match /usernames/{username} {
+      allow read, create: if signedIn();
+      allow update, delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    match /users/{userId}/moments/{momentId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && (
+          isOwner(userId)
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerUid == userId
+        );
+      allow update, delete: if signedIn()
+        && isOwner(userId)
+        && resource.data.authorUid == request.auth.uid;
+    }
+
+    match /users/{userId}/mood/{moodId} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId)
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/messages/{messageId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.senderUid == request.auth.uid
+        && (
+          isOwner(userId)
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerUid == userId
+        );
+      allow update, delete: if isOwner(userId);
+    }
+
+    match /pairingCodes/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+      // Pairing codes are single-use. The signed-in partner who consumes a
+      // valid code must be able to delete it after the atomic pair update.
+      allow delete: if signedIn();
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "716123903575",
+    "project_id": "closer-3e8d7",
+    "storage_bucket": "closer-3e8d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:716123903575:android:78325b95e7da5b5d5ef512",
+        "android_client_info": {
+          "package_name": "com.rayhan.closer_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjqkRkudVyPCNADcEPrl2FsbJyUxe2FOI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
