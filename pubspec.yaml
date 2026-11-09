@@ -1,5 +1,5 @@
-name: closer_app
-description: "Closer — A private app for couples in long distance relationships."
+name: rayna_app
+description: "Rayna — A private app for couples in long distance relationships."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -22,11 +22,20 @@ dependencies:
   # Typography
   google_fonts: ^6.2.1
 
-  # Firebase foundation and analytics
+  # Firebase
   firebase_core: ^4.2.1
   firebase_analytics: ^12.0.4
   firebase_auth: ^6.7.1
   cloud_firestore: ^6.10.2
+  firebase_storage: ^13.6.1
+  firebase_messaging: ^16.7.1
+
+  # Media
+  image_picker: ^1.2.4
+
+  # Local notifications
+  flutter_local_notifications: ^19.2.1
+  timezone: ^0.10.1
 
 dev_dependencies:
   flutter_test:

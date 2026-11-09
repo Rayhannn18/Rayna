@@ -25,5 +25,5 @@ Future<void> main() async {
     ),
   );
 
-  runApp(const ProviderScope(child: CloserApp()));
+  runApp(const ProviderScope(child: RaynaApp()));
 }

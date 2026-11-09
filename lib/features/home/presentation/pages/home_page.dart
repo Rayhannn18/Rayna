@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,188 +6,307 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../mood/providers/mood_providers.dart';
 import '../../../pairing/providers/pairing_providers.dart';
 
-/// Home page shell — the main screen after authentication.
-///
-/// Contains a bottom navigation bar with four tabs: Home, Moments, Send, Mood.
-/// Individual tab contents are placeholders — they will be implemented in
-/// later stages.
-class HomePage extends ConsumerStatefulWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  ConsumerState<HomePage> createState() => _HomePageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userDoc = ref.watch(currentUserDocumentProvider);
+    final data = userDoc.valueOrNull?.data() ?? {};
+    final paired = (data['activePairId'] as String?)?.isNotEmpty == true;
 
-class _HomePageState extends ConsumerState<HomePage> {
-  int _currentIndex = 0;
-
-  final List<_TabItem> _tabs = const [
-    _TabItem(icon: Icons.home_rounded, label: 'Home'),
-    _TabItem(icon: Icons.photo_library_outlined, label: 'Moments'),
-    _TabItem(icon: Icons.camera_alt_rounded, label: 'Send'),
-    _TabItem(icon: Icons.emoji_emotions_outlined, label: 'Mood'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      // ── App Bar ──────────────────────────────────────────────────────
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(
-          'Closer',
+          'Rayna',
           style: AppTextStyles.h3.copyWith(color: AppColors.dustyRose),
         ),
         actions: [
+          if (paired)
+            IconButton(
+              onPressed: () => context.go(AppRoutes.chat),
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              tooltip: 'Chat with Partner',
+            ),
           IconButton(
+            onPressed: () => context.go(AppRoutes.profile),
             icon: const Icon(Icons.person_outline_rounded),
             tooltip: 'Profile',
-            onPressed: () => context.go(AppRoutes.profile),
           ),
         ],
       ),
-
-      // ── Body ────────────────────────────────────────────────────────
-      body: _buildTabContent(_currentIndex),
-
-      // ── Bottom navigation ───────────────────────────────────────────
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          items: _tabs
-              .map(
-                (tab) => BottomNavigationBarItem(
-                  icon: Icon(tab.icon),
-                  label: tab.label,
-                ),
-              )
-              .toList(),
-        ),
-      ),
+      body: _buildBody(context, ref),
     );
   }
 
-  Widget _buildTabContent(int index) {
-    switch (index) {
-      case 0:
-        return _HomeTab();
-      case 1:
-        return _MomentsTab(onOpen: () => context.go(AppRoutes.moments));
-      case 2:
-        return _QuickTab(
-          title: 'Send',
-          icon: Icons.send_rounded,
-          onOpen: () => context.go(AppRoutes.messages),
-        );
-      case 3:
-        return _QuickTab(
-          title: 'Mood',
-          icon: Icons.emoji_emotions_outlined,
-          onOpen: () => context.go(AppRoutes.mood),
-        );
-      default:
-        return _HomeTab();
-    }
-  }
-}
+  Widget _buildBody(BuildContext context, WidgetRef ref) {
+    final document = ref.watch(currentUserDocumentProvider);
 
-// ── Home tab ────────────────────────────────────────────────────────────
-class _HomeTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userDocument = ref.watch(currentUserDocumentProvider);
-
-    return userDocument.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => _HomeStatus(
-        title: 'Could not load your profile',
-        message: 'Check your connection and try again.',
-        action: TextButton(
-          onPressed: () => ref.invalidate(currentUserDocumentProvider),
-          child: const Text('Retry'),
+    return document.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.dustyRose),
+      ),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Unable to load account: $e',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
       data: (snapshot) {
         final data = snapshot.data() ?? <String, dynamic>{};
-        final partnerUsername = data['partnerUsername'] as String?;
-        final displayName = data['displayName'] as String?;
-        final isPaired = (data['partnerUid'] as String?)?.isNotEmpty == true;
+        final name = data['displayName'] as String? ?? 'there';
+        final pairId = data['activePairId'] as String?;
+        final paired = pairId != null && pairId.isNotEmpty;
 
-        return _HomeStatus(
-          title: isPaired
-              ? 'Connected with ${partnerUsername ?? 'your partner'}'
-              : 'Hi ${displayName ?? 'there'}',
-          message: isPaired
-              ? 'Your private space is ready. Start sharing moments together.'
-              : 'Connect with your partner to start sharing moments together.',
-          icon: isPaired
-              ? Icons.favorite_rounded
-              : Icons.favorite_border_rounded,
-          action: isPaired
-              ? null
-              : ElevatedButton(
-                  onPressed: () => context.go(AppRoutes.pairing),
-                  child: const Text('Find Partner'),
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 110),
+          children: [
+            Text(
+              paired ? 'Welcome back, $name' : 'Hi, $name',
+              style: AppTextStyles.h2,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              paired
+                  ? 'Your private couple space is connected.'
+                  : 'Connect with your partner to start sharing moments.',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Connection Status / Partner Card ───────────────────────────
+            if (!paired)
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  side: const BorderSide(color: AppColors.divider),
                 ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(18),
+                  leading: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.dustyRose.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_outline_rounded,
+                      color: AppColors.dustyRose,
+                    ),
+                  ),
+                  title: Text(
+                    'Connect with Partner',
+                    style: AppTextStyles.labelLarge,
+                  ),
+                  subtitle: Text(
+                    'Use a quick pairing code or search their username.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                  onTap: () => context.go(AppRoutes.pairing),
+                ),
+              )
+            else ...[
+              // ── Partner Moods Live Widget ────────────────────────────────
+              _CoupleMoodCard(pairId: pairId),
+              const SizedBox(height: 24),
+            ],
+
+            // ── Quick Access Actions ───────────────────────────────────────
+            Text(
+              'Quick Actions',
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            if (paired) ...[
+              _ActionCard(
+                icon: Icons.chat_bubble_outline_rounded,
+                title: 'Couple Chat',
+                subtitle: 'Send a private sweet message to your partner',
+                onTap: () => context.go(AppRoutes.chat),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            _ActionCard(
+              icon: Icons.camera_alt_outlined,
+              title: 'Share a photo',
+              subtitle: 'Capture and share a daily moment',
+              onTap: () => context.go(AppRoutes.sendPhoto),
+            ),
+            const SizedBox(height: 12),
+            _ActionCard(
+              icon: Icons.photo_library_outlined,
+              title: 'Moments Timeline',
+              subtitle: 'View your shared photos and memories',
+              onTap: () => context.go(AppRoutes.moments),
+            ),
+            const SizedBox(height: 12),
+            _ActionCard(
+              icon: Icons.favorite_outline_rounded,
+              title: 'Mood Check-in',
+              subtitle: 'Update how you are feeling right now',
+              onTap: () => context.go(AppRoutes.mood),
+            ),
+          ],
         );
       },
     );
   }
 }
 
-class _HomeStatus extends StatelessWidget {
-  const _HomeStatus({
-    required this.title,
-    required this.message,
-    this.icon = Icons.favorite_border_rounded,
-    this.action,
-  });
+class _CoupleMoodCard extends ConsumerWidget {
+  const _CoupleMoodCard({required this.pairId});
 
-  final String title;
-  final String message;
-  final IconData icon;
-  final Widget? action;
+  final String pairId;
+
+  String _getEmoji(String mood) {
+    switch (mood.toLowerCase()) {
+      case 'happy':
+        return '😊';
+      case 'love':
+        return '🥰';
+      case 'calm':
+        return '😌';
+      case 'excited':
+        return '✨';
+      case 'missing you':
+        return '🥺';
+      case 'tired':
+        return '🥱';
+      case 'sad':
+        return '😢';
+      case 'stressed':
+        return '😮‍💨';
+      default:
+        return '💖';
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final moodsAsync = ref.watch(pairMoodsStreamProvider(pairId));
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: const BorderSide(color: AppColors.divider),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.all(18),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: AppColors.warmGray.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.favorite_rounded,
+                      color: AppColors.dustyRose,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Today\'s Emotions', style: AppTextStyles.labelLarge),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () => context.go(AppRoutes.mood),
+                  child: Text(
+                    'Check In',
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.dustyRose,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            moodsAsync.when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.dustyRose,
+                  ),
+                ),
               ),
-              child: Icon(icon, size: 40, color: AppColors.dustyRose),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              title,
-              style: AppTextStyles.h3.copyWith(color: AppColors.textPrimary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+              error: (_, _) => Text(
+                'Unable to load moods.',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
               ),
-              textAlign: TextAlign.center,
+              data: (snapshot) {
+                final docs = snapshot.docs;
+                if (docs.isEmpty) {
+                  return Text(
+                    'No mood shared today yet. Tap Check In to let your partner know how you feel.',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  );
+                }
+
+                Map<String, dynamic>? myMood;
+                Map<String, dynamic>? partnerMood;
+
+                for (final doc in docs) {
+                  final data = doc.data();
+                  if (data['uid'] == myUid) {
+                    myMood = data;
+                  } else {
+                    partnerMood = data;
+                  }
+                }
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _MoodBubble(
+                        title: 'You',
+                        mood: myMood?['mood'] as String?,
+                        note: myMood?['note'] as String?,
+                        emoji: _getEmoji(myMood?['mood'] as String? ?? ''),
+                        isPartner: false,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MoodBubble(
+                        title:
+                            partnerMood?['displayName'] as String? ?? 'Partner',
+                        mood: partnerMood?['mood'] as String?,
+                        note: partnerMood?['note'] as String?,
+                        emoji: _getEmoji(partnerMood?['mood'] as String? ?? ''),
+                        isPartner: true,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-            if (action != null) ...[
-              const SizedBox(height: 32),
-              SizedBox(width: 200, child: action),
-            ],
           ],
         ),
       ),
@@ -194,88 +314,136 @@ class _HomeStatus extends StatelessWidget {
   }
 }
 
-class _MomentsTab extends StatelessWidget {
-  const _MomentsTab({required this.onOpen});
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(
-          Icons.photo_library_outlined,
-          size: 48,
-          color: AppColors.dustyRose,
-        ),
-        const SizedBox(height: 16),
-        Text('Moments', style: AppTextStyles.h3),
-        const SizedBox(height: 8),
-        Text(
-          'Share little pieces of your day.',
-          style: AppTextStyles.bodySmall,
-        ),
-        const SizedBox(height: 20),
-        ElevatedButton(onPressed: onOpen, child: const Text('Open Moments')),
-      ],
-    ),
-  );
-}
-
-class _QuickTab extends StatelessWidget {
-  const _QuickTab({
+class _MoodBubble extends StatelessWidget {
+  const _MoodBubble({
     required this.title,
-    required this.icon,
-    required this.onOpen,
+    required this.mood,
+    required this.note,
+    required this.emoji,
+    required this.isPartner,
   });
-  final String title;
-  final IconData icon;
-  final VoidCallback onOpen;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 48, color: AppColors.dustyRose),
-        const SizedBox(height: 16),
-        Text(title, style: AppTextStyles.h3),
-        const SizedBox(height: 20),
-        ElevatedButton(onPressed: onOpen, child: Text('Open $title')),
-      ],
-    ),
-  );
-}
-
-// ── Generic placeholder for tabs not yet implemented ────────────────────
-class _PlaceholderTab extends StatelessWidget {
-  const _PlaceholderTab({required this.title, required this.icon});
 
   final String title;
-  final IconData icon;
+  final String? mood;
+  final String? note;
+  final String emoji;
+  final bool isPartner;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    final hasMood = mood != null && mood!.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isPartner
+            ? AppColors.softSage.withValues(alpha: 0.35)
+            : AppColors.warmGray.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 48, color: AppColors.textHint),
-          const SizedBox(height: 16),
           Text(
             title,
-            style: AppTextStyles.h3.copyWith(color: AppColors.textHint),
+            style: AppTextStyles.labelSmall.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
-          Text('Coming soon', style: AppTextStyles.bodySmall),
+          const SizedBox(height: 6),
+          if (hasMood) ...[
+            Row(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    mood!,
+                    style: AppTextStyles.labelLarge.copyWith(
+                      color: AppColors.charcoal,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            if (note != null && note!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                note!,
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ] else ...[
+            Text(
+              'Not shared yet',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-// ── Helper ──────────────────────────────────────────────────────────────
-class _TabItem {
-  const _TabItem({required this.icon, required this.label});
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
   final IconData icon;
-  final String label;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: AppColors.divider),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.warmGray.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: AppColors.dustyRose, size: 22),
+        ),
+        title: Text(title, style: AppTextStyles.labelLarge),
+        subtitle: Text(
+          subtitle,
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right_rounded,
+          color: AppColors.textSecondary,
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
 }

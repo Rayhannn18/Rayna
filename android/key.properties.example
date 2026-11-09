@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties and replace every value.
+# Never commit android/key.properties or the keystore.
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyPassword=REPLACE_WITH_KEY_PASSWORD
+keyAlias=closer-release
+storeFile=app/closer-release.jks

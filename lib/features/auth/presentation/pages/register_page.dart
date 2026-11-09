@@ -5,15 +5,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/auth_service.dart';
 import '../../providers/auth_providers.dart';
-
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../shared/widgets/closer_button.dart';
-import '../../../../shared/widgets/closer_text_field.dart';
+import '../../../../shared/widgets/rayna_button.dart';
+import '../../../../shared/widgets/rayna_text_field.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
+
   @override
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
@@ -28,6 +28,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   bool _obscurePass = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -40,8 +41,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _handleRegister() async {
+    setState(() => _errorMessage = null);
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
+
     try {
       await ref
           .read(authServiceProvider)
@@ -54,18 +57,40 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       if (mounted) context.go(AppRoutes.home);
     } on UsernameAlreadyTakenException {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username is already taken.')),
-        );
+        setState(() {
+          _errorMessage =
+              'Username "@${_usernameCtl.text.trim()}" is already taken. Please choose another.';
+        });
       }
     } on FirebaseAuthException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message ?? 'Unable to register.')),
-        );
+        setState(() {
+          _errorMessage = _authErrorMessage(error);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Registration could not be completed: $e';
+        });
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _authErrorMessage(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'email-already-in-use':
+        return 'An account with this email address already exists.';
+      case 'invalid-email':
+        return 'The email address is badly formatted.';
+      case 'weak-password':
+        return 'Password is too weak. Please use a stronger password.';
+      case 'operation-not-allowed':
+        return 'Email/password registration is not enabled in Firebase.';
+      default:
+        return error.message ?? 'Registration failed. Please try again.';
     }
   }
 
@@ -96,7 +121,39 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 28),
+        if (_errorMessage != null) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.error.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _errorMessage!,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
         _buildNameField(),
         const SizedBox(height: 16),
         _buildUsernameField(),
@@ -107,40 +164,49 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         const SizedBox(height: 16),
         _buildConfirmField(),
         const SizedBox(height: 32),
-        CloserButton(
+        RaynaButton(
           label: 'Create Account',
           isLoading: _isLoading,
           onPressed: _handleRegister,
         ),
         const SizedBox(height: 16),
-        _buildLoginLink(),
+        Center(
+          child: TextButton(
+            onPressed: () => context.go(AppRoutes.login),
+            child: Text.rich(
+              TextSpan(
+                text: 'Already have an account? ',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                children: [
+                  TextSpan(
+                    text: 'Sign In',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.dustyRose,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
       ],
     );
   }
 
   Widget _buildBackButton() {
-    return InkWell(
-      onTap: () => context.go(AppRoutes.onboarding),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.inputFill,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(
-          Icons.arrow_back_ios_new_rounded,
-          size: 18,
-          color: AppColors.charcoal,
-        ),
-      ),
+    return IconButton(
+      onPressed: () => context.go(AppRoutes.onboarding),
+      icon: const Icon(Icons.arrow_back_rounded),
+      tooltip: 'Back',
     );
   }
 
   Widget _buildNameField() {
-    return CloserTextField(
+    return RaynaTextField(
       hintText: 'Display Name',
       controller: _nameCtl,
       keyboardType: TextInputType.name,
@@ -155,8 +221,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Widget _buildUsernameField() {
-    return CloserTextField(
-      hintText: 'Username',
+    return RaynaTextField(
+      hintText: 'Unique Username (e.g. alexa)',
       controller: _usernameCtl,
       textInputAction: TextInputAction.next,
       prefixIcon: const Icon(Icons.alternate_email_rounded, size: 20),
@@ -172,7 +238,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Widget _buildEmailField() {
-    return CloserTextField(
+    return RaynaTextField(
       hintText: 'Email',
       controller: _emailCtl,
       keyboardType: TextInputType.emailAddress,
@@ -188,7 +254,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Widget _buildPasswordField() {
-    return CloserTextField(
+    return RaynaTextField(
       hintText: 'Password',
       controller: _passCtl,
       obscureText: _obscurePass,
@@ -199,6 +265,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           _obscurePass
               ? Icons.visibility_off_outlined
               : Icons.visibility_outlined,
+          size: 20,
         ),
         onPressed: () => setState(() => _obscurePass = !_obscurePass),
       ),
@@ -211,7 +278,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Widget _buildConfirmField() {
-    return CloserTextField(
+    return RaynaTextField(
       hintText: 'Confirm Password',
       controller: _confirmCtl,
       obscureText: _obscureConfirm,
@@ -222,6 +289,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           _obscureConfirm
               ? Icons.visibility_off_outlined
               : Icons.visibility_outlined,
+          size: 20,
         ),
         onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
       ),
@@ -230,30 +298,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         if (v != _passCtl.text) return 'Passwords do not match.';
         return null;
       },
-    );
-  }
-
-  Widget _buildLoginLink() {
-    return Center(
-      child: TextButton(
-        onPressed: () => context.go(AppRoutes.login),
-        child: Text.rich(
-          TextSpan(
-            text: 'Already have an account? ',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            children: [
-              TextSpan(
-                text: 'Sign In',
-                style: AppTextStyles.labelSmall.copyWith(
-                  color: AppColors.dustyRose,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

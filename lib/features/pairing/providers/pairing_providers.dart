@@ -11,3 +11,13 @@ final currentUserDocumentProvider =
     StreamProvider<DocumentSnapshot<Map<String, dynamic>>>((ref) {
       return ref.watch(pairingServiceProvider).userStream;
     });
+
+final incomingRequestsProvider =
+    StreamProvider<QuerySnapshot<Map<String, dynamic>>>((ref) {
+      return ref.watch(pairingServiceProvider).incomingRequestsStream;
+    });
+
+final outgoingRequestsProvider =
+    StreamProvider<QuerySnapshot<Map<String, dynamic>>>((ref) {
+      return ref.watch(pairingServiceProvider).outgoingRequestsStream;
+    });

@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import 'app_text_styles.dart';
 
-/// Light theme for the Closer app.
+/// Light theme for the Rayna app.
 class AppTheme {
   AppTheme._();
 

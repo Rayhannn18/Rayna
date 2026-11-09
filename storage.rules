@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /pairs/{pairId}/moments/{fileName} {
+      function isMember() {
+        return request.auth != null
+          && request.auth.uid in firestore.get(/databases/(default)/documents/pairs/$(pairId)).data.memberUids;
+      }
+
+      allow read: if isMember();
+      allow write: if isMember()
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|heic|heif)');
+      allow delete: if isMember();
+    }
+
+    // Explicitly reject all other unauthorized paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

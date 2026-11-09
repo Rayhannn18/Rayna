@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "dart-code.flutter",
+    "dart-code.dart-code",
+    "robert-brunhage.flutter-riverpod-snippets",
+    "redhat.vscode-yaml",
+    "jeroen-meijer.pubspec-assist",
+    "usernamehw.errorlens"
+  ]
+}
+

@@ -1,60 +1,155 @@
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../core/validation/validators.dart';
 
 class MomentsService {
-  MomentsService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-    : _firestore = firestore ?? FirebaseFirestore.instance,
-      _auth = auth ?? FirebaseAuth.instance;
+  MomentsService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+    FirebaseStorage? storage,
+    ImagePicker? picker,
+  }) : _firestore = firestore,
+       _authInstance = auth,
+       _storageInstance = storage,
+       _pickerInstance = picker;
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final FirebaseFirestore? _firestore;
+  final FirebaseAuth? _authInstance;
+  final FirebaseStorage? _storageInstance;
+  final ImagePicker? _pickerInstance;
 
-  String get _uid => _auth.currentUser!.uid;
-  CollectionReference<Map<String, dynamic>> get _momentsRef =>
-      _firestore.collection('users').doc(_uid).collection('moments');
+  FirebaseFirestore get _db => _firestore ?? FirebaseFirestore.instance;
+  FirebaseAuth get _auth => _authInstance ?? FirebaseAuth.instance;
+  FirebaseStorage get _storage => _storageInstance ?? FirebaseStorage.instance;
+  ImagePicker get _picker => _pickerInstance ?? ImagePicker();
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> get momentsStream =>
-      _momentsRef.orderBy('createdAt', descending: true).snapshots();
+  String get uid => _auth.currentUser!.uid;
 
-  Future<void> createMoment(String text) async {
-    final cleanText = text.trim();
-    if (cleanText.isEmpty)
-      throw const MomentsException('Moment cannot be empty.');
-    if (cleanText.length > 500) {
-      throw const MomentsException('Moment must be 500 characters or less.');
+  /// Stream of all shared moments in the pair, sorted chronologically descending.
+  Stream<QuerySnapshot<Map<String, dynamic>>> stream(String pairId) => _db
+      .collection('pairs')
+      .doc(pairId)
+      .collection('moments')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
+
+  /// Stream of a single moment document.
+  Stream<DocumentSnapshot<Map<String, dynamic>>> momentStream({
+    required String pairId,
+    required String momentId,
+  }) => _db
+      .collection('pairs')
+      .doc(pairId)
+      .collection('moments')
+      .doc(momentId)
+      .snapshots();
+
+  Future<String> downloadUrl(String storagePath) =>
+      _storage.ref(storagePath).getDownloadURL();
+
+  /// Picks an image from camera or gallery.
+  Future<XFile?> pickImage({ImageSource source = ImageSource.gallery}) async {
+    return _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
+  }
+
+  /// Uploads photo bytes and creates the moment document in Firestore.
+  Future<String> uploadBytes({
+    required String pairId,
+    required Uint8List bytes,
+    required String caption,
+    String? senderDisplayName,
+  }) async {
+    final captionError = Validators.caption(caption);
+    if (captionError != null) throw MomentsException(captionError);
+
+    if (bytes.lengthInBytes > 10 * 1024 * 1024) {
+      throw const MomentsException('Photo must be smaller than 10 MB.');
     }
-    final user = _auth.currentUser;
-    if (user == null) throw const MomentsException('You are not signed in.');
 
-    final userSnapshot = await _firestore.collection('users').doc(_uid).get();
-    final partnerUid = userSnapshot.data()?['partnerUid'] as String?;
-    if (partnerUid == null || partnerUid.isEmpty) {
+    final user = _auth.currentUser;
+    final name = senderDisplayName ?? user?.displayName ?? 'Partner';
+
+    final ref = _db.collection('pairs').doc(pairId).collection('moments').doc();
+    final path = 'pairs/$pairId/moments/${ref.id}.jpg';
+
+    await ref.set({
+      'senderUid': uid,
+      'senderName': name,
+      'storagePath': path,
+      'caption': caption.trim(),
+      'status': 'uploading',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    try {
+      await _storage
+          .ref(path)
+          .putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      await ref.update({
+        'status': 'ready',
+        'uploadedAt': FieldValue.serverTimestamp(),
+      });
+      return ref.id;
+    } catch (e) {
+      await ref.update({'status': 'failed'});
+      rethrow;
+    }
+  }
+
+  /// Deletes a moment from both Firestore and Firebase Storage.
+  ///
+  /// Only the sender who uploaded the photo is authorized to delete it.
+  Future<void> deleteMoment({
+    required String pairId,
+    required String momentId,
+  }) async {
+    final docRef = _db
+        .collection('pairs')
+        .doc(pairId)
+        .collection('moments')
+        .doc(momentId);
+
+    final snapshot = await docRef.get();
+    if (!snapshot.exists) {
+      throw const MomentsException('Moment not found.');
+    }
+
+    final data = snapshot.data()!;
+    if (data['senderUid'] != uid) {
       throw const MomentsException(
-        'Pair with a partner before sharing moments.',
+        'Only the sender who shared this photo can delete it.',
       );
     }
 
-    final momentRef = _momentsRef.doc();
-    final data = {
-      'id': momentRef.id,
-      'text': cleanText,
-      'authorUid': _uid,
-      'authorName': user.displayName ?? 'Closer user',
-      'createdAt': FieldValue.serverTimestamp(),
-    };
-    final partnerMomentRef = _firestore
-        .collection('users')
-        .doc(partnerUid)
-        .collection('moments')
-        .doc(momentRef.id);
-    final batch = _firestore.batch();
-    batch.set(momentRef, data);
-    batch.set(partnerMomentRef, data);
-    await batch.commit();
+    final storagePath = data['storagePath'] as String?;
+
+    // Delete Firestore document first
+    await docRef.delete();
+
+    // Delete file from Firebase Storage
+    if (storagePath != null && storagePath.isNotEmpty) {
+      try {
+        await _storage.ref(storagePath).delete();
+      } catch (_) {
+        // Silently ignore if storage file was already deleted or not found
+      }
+    }
   }
 }
 
 class MomentsException implements Exception {
   const MomentsException(this.message);
   final String message;
+
+  @override
+  String toString() => message;
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Closer app color palette.
+/// Rayna app color palette.
 ///
 /// Minimalis modern — soft, warm, dan personal.
 class AppColors {

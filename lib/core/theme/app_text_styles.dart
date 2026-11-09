@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
-/// Closer typography system built on Plus Jakarta Sans.
+/// Rayna typography system built on Plus Jakarta Sans.
 class AppTextStyles {
   AppTextStyles._();
 

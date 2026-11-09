@@ -4,11 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../shared/widgets/closer_button.dart';
+import '../../../../shared/widgets/rayna_button.dart';
 
 /// Onboarding page — the first screen users see.
 ///
-/// Introduces the Closer concept and provides entry points to login /
+/// Introduces the Rayna concept and provides entry points to login /
 /// register.
 class OnboardingPage extends StatelessWidget {
   const OnboardingPage({super.key});
@@ -44,7 +44,7 @@ class OnboardingPage extends StatelessWidget {
 
               // ── Title ───────────────────────────────────────────────
               Text(
-                'Closer',
+                'Rayna',
                 style: AppTextStyles.h1.copyWith(
                   color: AppColors.dustyRose,
                   fontSize: 40,
@@ -66,14 +66,14 @@ class OnboardingPage extends StatelessWidget {
               const SizedBox(height: 48),
 
               // ── Buttons ─────────────────────────────────────────────
-              CloserButton(
+              RaynaButton(
                 label: 'Get Started',
                 onPressed: () => context.go(AppRoutes.register),
               ),
 
               const SizedBox(height: 12),
 
-              CloserButton(
+              RaynaButton(
                 label: 'I already have an account',
                 outlined: true,
                 onPressed: () => context.go(AppRoutes.login),
