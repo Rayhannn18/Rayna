@@ -1,5 +1,5 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,36 +7,138 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../providers/moments_providers.dart';
 import '../../../pairing/providers/pairing_providers.dart';
+import '../../providers/moments_providers.dart';
 
-class MomentsPage extends ConsumerWidget {
+class MomentsPage extends ConsumerStatefulWidget {
   const MomentsPage({super.key});
 
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return '';
-    final dt = timestamp.toDate();
-    final now = DateTime.now();
-    final diff = now.difference(dt);
+  @override
+  ConsumerState<MomentsPage> createState() => _MomentsPageState();
+}
 
-    if (diff.inMinutes < 1) {
-      return 'Just now';
-    } else if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays}d ago';
-    } else {
-      return '${dt.day}/${dt.month}/${dt.year}';
+class _MomentsPageState extends ConsumerState<MomentsPage> {
+  String _formatTimestamp(Timestamp? ts) {
+    if (ts == null) return '';
+    final date = ts.toDate();
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _confirmAndDeleteMoment(
+    BuildContext context,
+    String pairId,
+    String momentId,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Moment?'),
+        content: const Text(
+          'This photo will be removed from your shared timeline.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ref
+            .read(momentsServiceProvider)
+            .deleteMoment(pairId: pairId, momentId: momentId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Moment deleted successfully'),
+              backgroundColor: AppColors.dustyRose,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
     }
   }
 
+  Widget _buildMomentImage(String url, {BoxFit fit = BoxFit.cover}) {
+    if (url.startsWith('data:image')) {
+      try {
+        final commaIndex = url.indexOf(',');
+        final base64Str =
+            commaIndex != -1 ? url.substring(commaIndex + 1) : url;
+        final bytes = base64Decode(base64Str);
+        return Image.memory(
+          bytes,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => const SizedBox(
+            height: 180,
+            child: Center(
+              child: Icon(Icons.broken_image_rounded,
+                  color: AppColors.textSecondary),
+            ),
+          ),
+        );
+      } catch (_) {
+        return const SizedBox(
+          height: 180,
+          child: Center(
+            child: Icon(Icons.broken_image_rounded,
+                color: AppColors.textSecondary),
+          ),
+        );
+      }
+    }
+
+    return Image.network(
+      url,
+      fit: fit,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const SizedBox(
+          height: 220,
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.dustyRose),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => const SizedBox(
+        height: 180,
+        child: Center(
+          child:
+              Icon(Icons.broken_image_rounded, color: AppColors.textSecondary),
+        ),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserDocumentProvider).valueOrNull?.data();
-    final pair = user?['activePairId'] as String?;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+  Widget build(BuildContext context) {
+    final userDoc = ref.watch(currentUserDocumentProvider);
+    final currentUid = ref.read(momentsServiceProvider).uid;
+    final pair = userDoc.valueOrNull?.data()?['activePairId'] as String?;
 
     if (pair == null || pair.isEmpty) {
       return Scaffold(
@@ -44,6 +146,12 @@ class MomentsPage extends ConsumerWidget {
         appBar: AppBar(
           title: Text('Shared Moments', style: AppTextStyles.h3),
           centerTitle: true,
+          leading: Navigator.of(context).canPop()
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              : null,
         ),
         body: Center(
           child: Padding(
@@ -171,6 +279,7 @@ class MomentsPage extends ConsumerWidget {
               final data = doc.data();
               final isReady =
                   data['storagePath'] is String && data['status'] == 'ready';
+              final downloadUrl = data['downloadUrl'] as String?;
               final caption = data['caption'] as String? ?? '';
               final senderName = data['senderName'] as String? ?? 'Partner';
               final isMe = data['senderUid'] == currentUid;
@@ -231,15 +340,45 @@ class MomentsPage extends ConsumerWidget {
                               ],
                             ),
                           ),
-                          IconButton(
+                          PopupMenuButton<String>(
                             icon: const Icon(
                               Icons.more_horiz_rounded,
                               size: 20,
                               color: AppColors.textSecondary,
                             ),
-                            onPressed: isReady
-                                ? () => context.go('/moments/${doc.id}')
-                                : null,
+                            onSelected: (value) {
+                              if (value == 'view') {
+                                context.go('/moments/${doc.id}');
+                              } else if (value == 'delete') {
+                                _confirmAndDeleteMoment(context, pair, doc.id);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              if (isReady)
+                                const PopupMenuItem(
+                                  value: 'view',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.visibility_outlined, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('View Details'),
+                                    ],
+                                  ),
+                                ),
+                              if (isMe)
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_outline_rounded,
+                                          size: 18, color: AppColors.error),
+                                      SizedBox(width: 8),
+                                      Text('Delete Moment',
+                                          style: TextStyle(color: AppColors.error)),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),
@@ -255,58 +394,83 @@ class MomentsPage extends ConsumerWidget {
                         constraints: const BoxConstraints(maxHeight: 380),
                         color: AppColors.warmGray.withValues(alpha: 0.3),
                         child: isReady
-                            ? FutureBuilder<String>(
-                                future: ref
-                                    .read(momentsServiceProvider)
-                                    .downloadUrl(data['storagePath'] as String),
-                                builder: (context, image) {
-                                  if (image.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return const Center(
-                                      child: SizedBox(
-                                        height: 220,
+                            ? (downloadUrl != null && downloadUrl.isNotEmpty
+                                ? _buildMomentImage(downloadUrl)
+                                : FutureBuilder<String>(
+                                    future: ref
+                                        .read(momentsServiceProvider)
+                                        .downloadUrl(
+                                            data['storagePath'] as String),
+                                    builder: (context, image) {
+                                      if (image.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return const Center(
+                                          child: SizedBox(
+                                            height: 220,
+                                            child: Center(
+                                              child:
+                                                  CircularProgressIndicator(
+                                                color: AppColors.dustyRose,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      if (image.hasData) {
+                                        return _buildMomentImage(image.data!);
+                                      }
+                                      return const SizedBox(
+                                        height: 180,
                                         child: Center(
-                                          child: CircularProgressIndicator(
-                                            color: AppColors.dustyRose,
+                                          child: Icon(
+                                            Icons.broken_image_rounded,
+                                            color: AppColors.textSecondary,
                                           ),
                                         ),
-                                      ),
-                                    );
-                                  }
-                                  if (image.hasData) {
-                                    return Image.network(
-                                      image.data!,
-                                      fit: BoxFit.cover,
-                                    );
-                                  }
-                                  return const SizedBox(
-                                    height: 180,
-                                    child: Center(
-                                      child: Icon(
-                                        Icons.broken_image_rounded,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )
+                                      );
+                                    },
+                                  ))
                             : Container(
                                 height: 180,
+                                padding: const EdgeInsets.all(16),
                                 color: AppColors.warmGray.withValues(
-                                  alpha: 0.4,
+                                  alpha: 0.35,
                                 ),
-                                child: const Center(
+                                child: Center(
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      CircularProgressIndicator(
-                                        color: AppColors.dustyRose,
+                                      const Icon(
+                                        Icons.cloud_off_rounded,
+                                        color: AppColors.error,
+                                        size: 34,
                                       ),
-                                      SizedBox(height: 10),
+                                      const SizedBox(height: 8),
                                       Text(
-                                        'Uploading photo securely...',
-                                        style: TextStyle(fontSize: 12),
+                                        'Upload incomplete or failed',
+                                        style: AppTextStyles.bodySmall.copyWith(
+                                          color: AppColors.charcoal,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
+                                      const SizedBox(height: 10),
+                                      if (isMe)
+                                        OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _confirmAndDeleteMoment(
+                                                  context, pair, doc.id),
+                                          icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 16),
+                                          label: const Text('Delete'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: AppColors.error,
+                                            side: const BorderSide(
+                                                color: AppColors.error),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),

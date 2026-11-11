@@ -8,6 +8,7 @@ import '../../features/auth/presentation/pages/onboarding_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/home/presentation/widgets/main_shell_scaffold.dart';
+import '../../features/map/presentation/pages/live_location_page.dart';
 import '../../features/messages/presentation/pages/chat_page.dart';
 import '../../features/moments/presentation/pages/moment_detail_page.dart';
 import '../../features/moments/presentation/pages/moments_page.dart';
@@ -32,6 +33,7 @@ class AppRoutes {
   static const String pairing = '/pairing';
   static const String pendingRequests = '/pending-requests';
   static const String moments = '/moments';
+  static const String map = '/map';
   static const String sendPhoto = '/send';
   static const String momentDetail = '/moments/:momentId';
   static const String mood = '/mood';
@@ -99,14 +101,14 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
 
-        // Tab 2: Send Photo
+        // Tab 2: Live Location Map
         StatefulShellBranch(
           routes: <RouteBase>[
             GoRoute(
-              path: AppRoutes.sendPhoto,
-              name: 'sendPhoto',
+              path: AppRoutes.map,
+              name: 'map',
               builder: (BuildContext context, GoRouterState state) =>
-                  const SendPhotoPage(),
+                  const LiveLocationPage(),
             ),
           ],
         ),
@@ -175,6 +177,13 @@ final GoRouter appRouter = GoRouter(
       name: 'pendingRequests',
       builder: (BuildContext context, GoRouterState state) =>
           const PendingRequestsPage(),
+    ),
+    GoRoute(
+      parentNavigatorKey: rootNavigatorKey,
+      path: AppRoutes.sendPhoto,
+      name: 'sendPhoto',
+      builder: (BuildContext context, GoRouterState state) =>
+          const SendPhotoPage(),
     ),
     GoRoute(
       parentNavigatorKey: rootNavigatorKey,

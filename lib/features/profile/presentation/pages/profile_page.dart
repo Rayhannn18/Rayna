@@ -10,6 +10,7 @@ import '../../../../features/auth/providers/auth_providers.dart';
 import '../../../../core/notifications/notification_providers.dart';
 import '../../../pairing/data/pairing_service.dart';
 import '../../../pairing/providers/pairing_providers.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -26,13 +27,20 @@ class ProfilePage extends ConsumerWidget {
     final username = data['username'] as String? ?? '';
     final bio = data['bio'] as String? ?? '';
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          context.go(AppRoutes.home);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         leading: IconButton(
           onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
+            if (context.canPop()) {
+              context.pop();
             } else {
               context.go(AppRoutes.home);
             }
@@ -44,7 +52,7 @@ class ProfilePage extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: () => context.go(AppRoutes.editProfile),
+            onPressed: () => context.push(AppRoutes.editProfile),
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit Profile',
           ),
@@ -55,17 +63,14 @@ class ProfilePage extends ConsumerWidget {
         children: [
           // ── User Header ─────────────────────────────────────────────────
           Center(
-            child: CircleAvatar(
-              radius: 46,
-              backgroundColor: AppColors.dustyRose.withValues(alpha: 0.18),
-              child: Text(
-                (displayName.isNotEmpty ? displayName[0] : (user?.email ?? '?'))
-                    .substring(0, 1)
-                    .toUpperCase(),
-                style: AppTextStyles.h1.copyWith(
-                  color: AppColors.dustyRose,
-                  fontSize: 34,
-                ),
+            child: GestureDetector(
+              onTap: () => context.push(AppRoutes.editProfile),
+              child: UserAvatar(
+                photoUrl: data['photoURL'] as String? ?? user?.photoURL,
+                name: displayName,
+                radius: 46,
+                borderWidth: 2.5,
+                borderColor: AppColors.dustyRose.withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -108,7 +113,7 @@ class ProfilePage extends ConsumerWidget {
 
           // ── Quick Edit Action Button ────────────────────────────────────
           OutlinedButton.icon(
-            onPressed: () => context.go(AppRoutes.editProfile),
+            onPressed: () => context.push(AppRoutes.editProfile),
             icon: const Icon(Icons.edit_note_rounded, size: 20),
             label: const Text('Edit Profile & Bio'),
             style: OutlinedButton.styleFrom(
@@ -154,7 +159,7 @@ class ProfilePage extends ConsumerWidget {
                   ),
                   trailing: !paired
                       ? TextButton(
-                          onPressed: () => context.go(AppRoutes.pairing),
+                          onPressed: () => context.push(AppRoutes.pairing),
                           child: const Text('Find Partner'),
                         )
                       : null,
@@ -170,7 +175,7 @@ class ProfilePage extends ConsumerWidget {
                     Icons.chevron_right_rounded,
                     color: AppColors.textSecondary,
                   ),
-                  onTap: () => context.go(AppRoutes.notificationSettings),
+                  onTap: () => context.push(AppRoutes.notificationSettings),
                 ),
               ],
             ),
@@ -250,8 +255,9 @@ class ProfilePage extends ConsumerWidget {
           const SizedBox(height: 32),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Future<void> _leave(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(

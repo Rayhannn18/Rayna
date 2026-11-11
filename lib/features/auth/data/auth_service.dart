@@ -1,13 +1,21 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class AuthService {
-  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _firestore = firestore ?? FirebaseFirestore.instance;
+  AuthService({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+  })  : _auth = auth ?? FirebaseAuth.instance,
+        _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
@@ -16,10 +24,8 @@ class AuthService {
   Future<bool> isUsernameAvailable(String username) async {
     final cleanUsername = username.trim().toLowerCase();
     if (cleanUsername.isEmpty) return false;
-    final doc = await _firestore
-        .collection('usernames')
-        .doc(cleanUsername)
-        .get();
+    final doc =
+        await _firestore.collection('usernames').doc(cleanUsername).get();
     return !doc.exists;
   }
 
@@ -35,14 +41,23 @@ class AuthService {
     required String username,
     required String email,
     required String password,
-  }) async {
-    final cleanUsername = username.trim();
-    final usernameKey = cleanUsername.toLowerCase();
-    final usernameRef = _firestore.collection('usernames').doc(usernameKey);
+  }) =>
+      signUp(
+        email: email,
+        password: password,
+        displayName: displayName,
+        username: username,
+      );
 
-    // Pre-check before user creation to prevent creating unnecessary Auth accounts
-    final preCheck = await usernameRef.get();
-    if (preCheck.exists) {
+  Future<void> signUp({
+    required String email,
+    required String password,
+    required String displayName,
+    required String username,
+  }) async {
+    final cleanUsername = username.trim().toLowerCase();
+    final isAvailable = await isUsernameAvailable(cleanUsername);
+    if (!isAvailable) {
       throw const UsernameAlreadyTakenException();
     }
 
@@ -50,27 +65,35 @@ class AuthService {
       email: email.trim(),
       password: password,
     );
-    final user = userCredential.user!;
+
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('Firebase User is null after registration.');
+    }
 
     try {
       await _firestore.runTransaction((transaction) async {
-        final usernameSnapshot = await transaction.get(usernameRef);
-        if (usernameSnapshot.exists) {
+        final usernameRef =
+            _firestore.collection('usernames').doc(cleanUsername);
+        final usernameDoc = await transaction.get(usernameRef);
+        if (usernameDoc.exists) {
           throw const UsernameAlreadyTakenException();
         }
+
         transaction.set(usernameRef, {
           'uid': user.uid,
-          'username': cleanUsername,
+          'username': username.trim(),
           'displayName': displayName.trim(),
           'createdAt': FieldValue.serverTimestamp(),
         });
-        transaction.set(_firestore.collection('users').doc(user.uid), {
+
+        final userRef = _firestore.collection('users').doc(user.uid);
+        transaction.set(userRef, {
           'uid': user.uid,
+          'email': email.trim().toLowerCase(),
           'displayName': displayName.trim(),
-          'username': cleanUsername,
-          'usernameLower': usernameKey,
-          'email': email.trim(),
-          'bio': '',
+          'username': username.trim(),
+          'usernameLower': cleanUsername,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -83,8 +106,43 @@ class AuthService {
     }
   }
 
+  /// Upload a profile photo and return download URL (or base64 fallback)
+  Future<String> uploadProfilePhoto(Uint8List bytes) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('No authenticated user found.');
+
+    final path =
+        'users/${user.uid}/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    try {
+      final uploadTask = _storage
+          .ref(path)
+          .putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (_) {
+      try {
+        final fallback = FirebaseStorage.instanceFor(
+          bucket: 'gs://closer-3e8d7.appspot.com',
+        );
+        final snapshot2 = await fallback
+            .ref(path)
+            .putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+        return await snapshot2.ref.getDownloadURL();
+      } catch (_) {
+        // Fallback to embedded base64 data URI
+        final base64String = base64Encode(bytes);
+        return 'data:image/jpeg;base64,$base64String';
+      }
+    }
+  }
+
   /// Update the current user's profile details.
-  Future<void> updateProfile({required String displayName, String? bio}) async {
+  Future<void> updateProfile({
+    required String displayName,
+    String? bio,
+    String? photoUrl,
+    bool removePhoto = false,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('No authenticated user found.');
 
@@ -100,19 +158,34 @@ class AuthService {
     if (bio != null) {
       updates['bio'] = bio.trim();
     }
+    if (removePhoto) {
+      updates['photoURL'] = FieldValue.delete();
+      await user.updatePhotoURL(null);
+    } else if (photoUrl != null) {
+      updates['photoURL'] = photoUrl;
+      await user.updatePhotoURL(photoUrl);
+    }
 
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
-    final usernameKey =
-        userDoc.data()?['usernameLower'] as String? ??
+    final usernameKey = userDoc.data()?['usernameLower'] as String? ??
         userDoc.data()?['username']?.toString().toLowerCase();
 
     await _firestore.collection('users').doc(user.uid).update(updates);
     if (usernameKey != null && usernameKey.isNotEmpty) {
       try {
-        await _firestore.collection('usernames').doc(usernameKey).set({
+        final usernameUpdates = <String, dynamic>{
           'displayName': trimmedName,
           'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        if (removePhoto) {
+          usernameUpdates['photoURL'] = FieldValue.delete();
+        } else if (photoUrl != null) {
+          usernameUpdates['photoURL'] = photoUrl;
+        }
+        await _firestore.collection('usernames').doc(usernameKey).set(
+          usernameUpdates,
+          SetOptions(merge: true),
+        );
       } catch (_) {}
     }
     await user.updateDisplayName(trimmedName);

@@ -20,8 +20,8 @@ class PendingRequestsPage extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
+            if (context.canPop()) {
+              context.pop();
             } else {
               context.go(AppRoutes.pairing);
             }

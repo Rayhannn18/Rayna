@@ -27,6 +27,7 @@ class _PairingPageState extends ConsumerState<PairingPage>
   bool _connectingCode = false;
   bool _generatingCode = false;
   String? _codeError;
+  String? _localPairingCode;
 
   // Username Tab controllers
   final _usernameController = TextEditingController();
@@ -61,6 +62,9 @@ class _PairingPageState extends ConsumerState<PairingPage>
     try {
       final code = await ref.read(pairingServiceProvider).generatePairingCode();
       if (mounted) {
+        setState(() {
+          _localPairingCode = code;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('New pairing code generated: $code'),
@@ -169,8 +173,8 @@ class _PairingPageState extends ConsumerState<PairingPage>
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
+            if (context.canPop()) {
+              context.pop();
             } else {
               context.go(AppRoutes.home);
             }
@@ -183,7 +187,7 @@ class _PairingPageState extends ConsumerState<PairingPage>
             alignment: Alignment.center,
             children: [
               TextButton.icon(
-                onPressed: () => context.go(AppRoutes.pendingRequests),
+                onPressed: () => context.push(AppRoutes.pendingRequests),
                 icon: const Icon(Icons.inbox_rounded, size: 20),
                 label: const Text('Requests'),
                 style: TextButton.styleFrom(
@@ -241,8 +245,8 @@ class _PairingPageState extends ConsumerState<PairingPage>
 
   Widget _buildPairingCodeTab() {
     final userDoc = ref.watch(currentUserDocumentProvider);
-    final currentCode =
-        userDoc.valueOrNull?.data()?['pairingCode'] as String? ?? '';
+    final currentCode = _localPairingCode ??
+        (userDoc.valueOrNull?.data()?['pairingCode'] as String? ?? '');
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),

@@ -50,9 +50,9 @@ class GlassBottomNavBar extends StatelessWidget {
       unselectedIcon: Icons.photo_library_outlined,
     ),
     GlassNavItem(
-      label: 'Send',
-      selectedIcon: Icons.camera_alt_rounded,
-      unselectedIcon: Icons.camera_alt_outlined,
+      label: 'Map',
+      selectedIcon: Icons.map_rounded,
+      unselectedIcon: Icons.map_outlined,
     ),
     GlassNavItem(
       label: 'Mood',

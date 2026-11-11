@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/router/app_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -70,7 +74,11 @@ class MomentDetailPage extends ConsumerWidget {
               backgroundColor: AppColors.info,
             ),
           );
-          Navigator.of(context).pop();
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRoutes.moments);
+          }
         }
       } catch (e) {
         if (context.mounted) {
@@ -158,7 +166,13 @@ class MomentDetailPage extends ConsumerWidget {
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(AppRoutes.moments);
+                }
+              },
             ),
             title: Text(
               isOwner ? 'Your Moment' : "$senderName's Moment",
@@ -179,44 +193,77 @@ class MomentDetailPage extends ConsumerWidget {
           body: Column(
             children: [
               Expanded(
-                child: storagePath != null && storagePath.isNotEmpty
-                    ? FutureBuilder<String>(
-                        future: ref
-                            .read(momentsServiceProvider)
-                            .downloadUrl(storagePath),
-                        builder: (context, urlSnapshot) {
-                          if (urlSnapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.dustyRose,
-                              ),
-                            );
-                          }
-                          if (urlSnapshot.hasError || !urlSnapshot.hasData) {
-                            return const Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                color: Colors.white54,
-                                size: 56,
-                              ),
-                            );
-                          }
-                          return InteractiveViewer(
-                            minScale: 0.8,
-                            maxScale: 4.0,
-                            child: Center(
-                              child: Image.network(
-                                urlSnapshot.data!,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          );
-                        },
+                child: (data['downloadUrl'] is String &&
+                        (data['downloadUrl'] as String).isNotEmpty)
+                    ? InteractiveViewer(
+                        minScale: 0.8,
+                        maxScale: 4.0,
+                        child: Center(
+                          child: (data['downloadUrl'] as String)
+                                  .startsWith('data:image')
+                              ? Image.memory(
+                                  base64Decode(
+                                    (data['downloadUrl'] as String).contains(',')
+                                        ? (data['downloadUrl'] as String)
+                                            .split(',')
+                                            .last
+                                        : data['downloadUrl'] as String,
+                                  ),
+                                  fit: BoxFit.contain,
+                                )
+                              : Image.network(
+                                  data['downloadUrl'] as String,
+                                  fit: BoxFit.contain,
+                                  loadingBuilder:
+                                      (context, child, progress) {
+                                    if (progress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.dustyRose,
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
                       )
-                    : const Center(
-                        child: Icon(Icons.broken_image, color: Colors.white54),
-                      ),
+                    : (storagePath != null && storagePath.isNotEmpty
+                        ? FutureBuilder<String>(
+                            future: ref
+                                .read(momentsServiceProvider)
+                                .downloadUrl(storagePath),
+                            builder: (context, urlSnapshot) {
+                              if (urlSnapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.dustyRose,
+                                  ),
+                                );
+                              }
+                              if (urlSnapshot.hasError || !urlSnapshot.hasData) {
+                                return const Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white54,
+                                    size: 56,
+                                  ),
+                                );
+                              }
+                              return InteractiveViewer(
+                                minScale: 0.8,
+                                maxScale: 4.0,
+                                child: Center(
+                                  child: Image.network(
+                                    urlSnapshot.data!,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : const Center(
+                            child: Icon(Icons.broken_image, color: Colors.white54),
+                          )),
               ),
 
               // ── Caption & Timestamp Footer ──────────────────────────────

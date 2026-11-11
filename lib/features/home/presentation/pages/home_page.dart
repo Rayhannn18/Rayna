@@ -28,12 +28,12 @@ class HomePage extends ConsumerWidget {
         actions: [
           if (paired)
             IconButton(
-              onPressed: () => context.go(AppRoutes.chat),
+              onPressed: () => context.push(AppRoutes.chat),
               icon: const Icon(Icons.chat_bubble_outline_rounded),
               tooltip: 'Chat with Partner',
             ),
           IconButton(
-            onPressed: () => context.go(AppRoutes.profile),
+            onPressed: () => context.push(AppRoutes.profile),
             icon: const Icon(Icons.person_outline_rounded),
             tooltip: 'Profile',
           ),
@@ -53,10 +53,27 @@ class HomePage extends ConsumerWidget {
       error: (e, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'Unable to load account: $e',
-            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
-            textAlign: TextAlign.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text(
+                'Unable to load account: $e',
+                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => ref.invalidate(currentUserDocumentProvider),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.dustyRose),
+                  foregroundColor: AppColors.dustyRose,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -119,7 +136,7 @@ class HomePage extends ConsumerWidget {
                     Icons.chevron_right_rounded,
                     color: AppColors.textSecondary,
                   ),
-                  onTap: () => context.go(AppRoutes.pairing),
+                  onTap: () => context.push(AppRoutes.pairing),
                 ),
               )
             else ...[
@@ -138,6 +155,13 @@ class HomePage extends ConsumerWidget {
             const SizedBox(height: 12),
 
             if (paired) ...[
+              _ActionCard(
+                icon: Icons.map_outlined,
+                title: 'Live Location & Battery',
+                subtitle: 'See where your partner is and their device battery',
+                onTap: () => context.go(AppRoutes.map),
+              ),
+              const SizedBox(height: 12),
               _ActionCard(
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'Couple Chat',

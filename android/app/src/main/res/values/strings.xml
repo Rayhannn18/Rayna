@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Maps Android API Key.
+         Ensure 'Maps SDK for Android' is enabled in Google Cloud Console
+         for project 'closer-3e8d7' with package restriction 'com.rayhan.rayna'. -->
+    <string name="google_maps_api_key">AIzaSyBtLJ_grCVxBSHtAX290GwnBP3a-dmKqYM</string>
+</resources>
+

@@ -13,12 +13,16 @@ class PairingService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
 
+  String? get _uidOrNull => _auth.currentUser?.uid;
   String get _uid => _auth.currentUser!.uid;
   DocumentReference<Map<String, dynamic>> get _userRef =>
       _firestore.collection('users').doc(_uid);
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get userStream =>
-      _userRef.snapshots();
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get userStream {
+    final uid = _uidOrNull;
+    if (uid == null) return const Stream.empty();
+    return _firestore.collection('users').doc(uid).snapshots();
+  }
 
   /// Search for a user by username (case-insensitive) without exposing email or private data.
   Future<Map<String, dynamic>?> searchUsername(String username) async {
@@ -82,10 +86,10 @@ class PairingService {
       'status': 'active',
     });
 
-    await _userRef.update({
+    await _userRef.set({
       'pairingCode': code,
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
 
     return code;
   }
@@ -217,21 +221,27 @@ class PairingService {
     });
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> get incomingRequestsStream =>
-      _firestore
-          .collection('connectionRequests')
-          .where('toUid', isEqualTo: _uid)
-          .where('status', isEqualTo: 'pending')
-          .orderBy('createdAt', descending: true)
-          .snapshots();
+  Stream<QuerySnapshot<Map<String, dynamic>>> get incomingRequestsStream {
+    final uid = _uidOrNull;
+    if (uid == null) return const Stream.empty();
+    return _firestore
+        .collection('connectionRequests')
+        .where('toUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> get outgoingRequestsStream =>
-      _firestore
-          .collection('connectionRequests')
-          .where('fromUid', isEqualTo: _uid)
-          .where('status', isEqualTo: 'pending')
-          .orderBy('createdAt', descending: true)
-          .snapshots();
+  Stream<QuerySnapshot<Map<String, dynamic>>> get outgoingRequestsStream {
+    final uid = _uidOrNull;
+    if (uid == null) return const Stream.empty();
+    return _firestore
+        .collection('connectionRequests')
+        .where('fromUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
 
   /// Accept a connection request — create a pair and update both users.
   Future<void> acceptRequest(String requestId) async {

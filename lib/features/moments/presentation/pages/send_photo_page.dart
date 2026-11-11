@@ -115,8 +115,11 @@ class _SendPhotoPageState extends ConsumerState<SendPhotoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         title: Text('Share a Moment', style: AppTextStyles.h3),
         centerTitle: true,
         leading: Navigator.of(context).canPop()
@@ -210,6 +213,9 @@ class _SendPhotoPageState extends ConsumerState<SendPhotoPage> {
                       : () => _pickImage(ImageSource.camera),
                   icon: const Icon(Icons.camera_alt_outlined, size: 18),
                   label: const Text('Retake'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.dustyRose,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 TextButton.icon(
@@ -218,6 +224,9 @@ class _SendPhotoPageState extends ConsumerState<SendPhotoPage> {
                       : () => _pickImage(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library_outlined, size: 18),
                   label: const Text('Pick Other'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.dustyRose,
+                  ),
                 ),
               ],
             ),
@@ -295,7 +304,7 @@ class _SendPhotoPageState extends ConsumerState<SendPhotoPage> {
             decoration: InputDecoration(
               hintText: 'Add a sweet note or feeling about this moment...',
               filled: true,
-              fillColor: AppColors.white,
+              fillColor: AppColors.softIvory,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
                 borderSide: const BorderSide(color: AppColors.divider),
