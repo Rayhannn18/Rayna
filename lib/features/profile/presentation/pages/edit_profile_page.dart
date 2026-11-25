@@ -116,7 +116,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
               ListTile(
                 leading: const CircleAvatar(
                   backgroundColor: AppColors.softIvory,
-                  child: Icon(Icons.camera_alt_outlined, color: AppColors.dustyRose),
+                  child: Icon(
+                    Icons.camera_alt_outlined,
+                    color: AppColors.dustyRose,
+                  ),
                 ),
                 title: const Text('Take a Photo'),
                 shape: RoundedRectangleBorder(
@@ -130,7 +133,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
               ListTile(
                 leading: const CircleAvatar(
                   backgroundColor: AppColors.softIvory,
-                  child: Icon(Icons.photo_library_outlined, color: AppColors.dustyRose),
+                  child: Icon(
+                    Icons.photo_library_outlined,
+                    color: AppColors.dustyRose,
+                  ),
                 ),
                 title: const Text('Choose from Gallery'),
                 shape: RoundedRectangleBorder(
@@ -146,8 +152,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                 ListTile(
                   leading: CircleAvatar(
                     backgroundColor: AppColors.error.withValues(alpha: 0.12),
-                    child: const Icon(Icons.delete_outline_rounded,
-                        color: AppColors.error),
+                    child: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: AppColors.error,
+                    ),
                   ),
                   title: const Text(
                     'Remove Photo',
@@ -183,8 +191,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
       // 1. Upload new avatar if selected
       if (_newAvatarBytes != null) {
-        uploadedPhotoUrl =
-            await authService.uploadProfilePhoto(_newAvatarBytes!);
+        uploadedPhotoUrl = await authService.uploadProfilePhoto(
+          _newAvatarBytes!,
+        );
       }
 
       // 2. Update profile document in Firestore and FirebaseAuth
@@ -264,7 +273,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: AppColors.dustyRose.withValues(alpha: 0.35),
+                              color: AppColors.dustyRose.withValues(
+                                alpha: 0.35,
+                              ),
                               width: 3,
                             ),
                           ),
@@ -278,8 +289,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                   ),
                                 )
                               : UserAvatar(
-                                  photoUrl:
-                                      _removePhoto ? null : _currentPhotoUrl,
+                                  photoUrl: _removePhoto
+                                      ? null
+                                      : _currentPhotoUrl,
                                   name: displayName.isNotEmpty
                                       ? displayName
                                       : 'You',
@@ -399,7 +411,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Bio (Optional)', style: AppTextStyles.labelLarge),
+                  child: Text(
+                    'Bio (Optional)',
+                    style: AppTextStyles.labelLarge,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 RaynaTextField(

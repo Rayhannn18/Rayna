@@ -56,11 +56,17 @@ class HomePage extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.error),
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 48,
+                color: AppColors.error,
+              ),
               const SizedBox(height: 12),
               Text(
                 'Unable to load account: $e',
-                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.error,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

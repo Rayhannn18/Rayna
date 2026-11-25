@@ -46,7 +46,8 @@ class _MainShellScaffoldState extends ConsumerState<MainShellScaffold> {
   @override
   Widget build(BuildContext context) {
     final userDoc = ref.watch(currentUserDocumentProvider);
-    final activePairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
+    final activePairId =
+        userDoc.valueOrNull?.data()?['activePairId'] as String?;
 
     if (activePairId != null &&
         activePairId.isNotEmpty &&

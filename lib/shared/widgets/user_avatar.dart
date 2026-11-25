@@ -26,14 +26,13 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveBgColor = backgroundColor ??
+    final effectiveBgColor =
+        backgroundColor ??
         (borderColor != null
             ? borderColor!.withValues(alpha: 0.15)
             : AppColors.dustyRose.withValues(alpha: 0.15));
 
-    final initial = name.isNotEmpty
-        ? name.substring(0, 1).toUpperCase()
-        : '♥';
+    final initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '♥';
 
     Widget avatarContent;
 
@@ -41,8 +40,9 @@ class UserAvatar extends StatelessWidget {
       if (photoUrl!.startsWith('data:image')) {
         try {
           final commaIndex = photoUrl!.indexOf(',');
-          final base64Str =
-              commaIndex != -1 ? photoUrl!.substring(commaIndex + 1) : photoUrl!;
+          final base64Str = commaIndex != -1
+              ? photoUrl!.substring(commaIndex + 1)
+              : photoUrl!;
           final bytes = base64Decode(base64Str);
           avatarContent = Image.memory(
             bytes,
@@ -94,4 +94,3 @@ class UserAvatar extends StatelessWidget {
     );
   }
 }
-

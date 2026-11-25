@@ -21,14 +21,14 @@ void main() {
       // Verify all 4 labels are displayed
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Moments'), findsOneWidget);
-      expect(find.text('Send'), findsOneWidget);
+      expect(find.text('Map'), findsOneWidget);
       expect(find.text('Mood'), findsOneWidget);
 
       // Verify active home icon
       expect(find.byIcon(Icons.home_rounded), findsOneWidget);
       // Inactive icons
       expect(find.byIcon(Icons.photo_library_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.camera_alt_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.map_outlined), findsOneWidget);
       expect(find.byIcon(Icons.favorite_outline_rounded), findsOneWidget);
     });
 
@@ -53,8 +53,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(tappedIndex, equals(1));
 
-      // Tap on 'Send'
-      await tester.tap(find.text('Send'));
+      // Tap on 'Map'
+      await tester.tap(find.text('Map'));
       await tester.pumpAndSettle();
       expect(tappedIndex, equals(2));
 

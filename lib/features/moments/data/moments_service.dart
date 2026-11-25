@@ -90,6 +90,10 @@ class MomentsService {
     final captionError = Validators.caption(caption);
     if (captionError != null) throw MomentsException(captionError);
 
+    if (bytes.lengthInBytes > 10 * 1024 * 1024) {
+      throw const MomentsException('Photo must be smaller than 10 MB.');
+    }
+
     final user = _auth.currentUser;
     final name = senderDisplayName ?? user?.displayName ?? 'Partner';
 

@@ -62,7 +62,7 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
         await ref
             .read(momentsServiceProvider)
             .deleteMoment(pairId: pairId, momentId: momentId);
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Moment deleted successfully'),
@@ -71,7 +71,7 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
           );
         }
       } catch (e) {
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to delete: $e'),
@@ -87,8 +87,9 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
     if (url.startsWith('data:image')) {
       try {
         final commaIndex = url.indexOf(',');
-        final base64Str =
-            commaIndex != -1 ? url.substring(commaIndex + 1) : url;
+        final base64Str = commaIndex != -1
+            ? url.substring(commaIndex + 1)
+            : url;
         final bytes = base64Decode(base64Str);
         return Image.memory(
           bytes,
@@ -96,8 +97,10 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
           errorBuilder: (context, error, stackTrace) => const SizedBox(
             height: 180,
             child: Center(
-              child: Icon(Icons.broken_image_rounded,
-                  color: AppColors.textSecondary),
+              child: Icon(
+                Icons.broken_image_rounded,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
         );
@@ -105,8 +108,10 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
         return const SizedBox(
           height: 180,
           child: Center(
-            child: Icon(Icons.broken_image_rounded,
-                color: AppColors.textSecondary),
+            child: Icon(
+              Icons.broken_image_rounded,
+              color: AppColors.textSecondary,
+            ),
           ),
         );
       }
@@ -127,8 +132,10 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
       errorBuilder: (context, error, stackTrace) => const SizedBox(
         height: 180,
         child: Center(
-          child:
-              Icon(Icons.broken_image_rounded, color: AppColors.textSecondary),
+          child: Icon(
+            Icons.broken_image_rounded,
+            color: AppColors.textSecondary,
+          ),
         ),
       ),
     );
@@ -370,11 +377,18 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
                                   value: 'delete',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.delete_outline_rounded,
-                                          size: 18, color: AppColors.error),
+                                      Icon(
+                                        Icons.delete_outline_rounded,
+                                        size: 18,
+                                        color: AppColors.error,
+                                      ),
                                       SizedBox(width: 8),
-                                      Text('Delete Moment',
-                                          style: TextStyle(color: AppColors.error)),
+                                      Text(
+                                        'Delete Moment',
+                                        style: TextStyle(
+                                          color: AppColors.error,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -395,41 +409,43 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
                         color: AppColors.warmGray.withValues(alpha: 0.3),
                         child: isReady
                             ? (downloadUrl != null && downloadUrl.isNotEmpty
-                                ? _buildMomentImage(downloadUrl)
-                                : FutureBuilder<String>(
-                                    future: ref
-                                        .read(momentsServiceProvider)
-                                        .downloadUrl(
-                                            data['storagePath'] as String),
-                                    builder: (context, image) {
-                                      if (image.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return const Center(
-                                          child: SizedBox(
-                                            height: 220,
-                                            child: Center(
-                                              child:
-                                                  CircularProgressIndicator(
-                                                color: AppColors.dustyRose,
+                                  ? _buildMomentImage(downloadUrl)
+                                  : FutureBuilder<String>(
+                                      future: ref
+                                          .read(momentsServiceProvider)
+                                          .downloadUrl(
+                                            data['storagePath'] as String,
+                                          ),
+                                      builder: (context, image) {
+                                        if (image.connectionState ==
+                                            ConnectionState.waiting) {
+                                          return const Center(
+                                            child: SizedBox(
+                                              height: 220,
+                                              child: Center(
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      color:
+                                                          AppColors.dustyRose,
+                                                    ),
                                               ),
+                                            ),
+                                          );
+                                        }
+                                        if (image.hasData) {
+                                          return _buildMomentImage(image.data!);
+                                        }
+                                        return const SizedBox(
+                                          height: 180,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.broken_image_rounded,
+                                              color: AppColors.textSecondary,
                                             ),
                                           ),
                                         );
-                                      }
-                                      if (image.hasData) {
-                                        return _buildMomentImage(image.data!);
-                                      }
-                                      return const SizedBox(
-                                        height: 180,
-                                        child: Center(
-                                          child: Icon(
-                                            Icons.broken_image_rounded,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ))
+                                      },
+                                    ))
                             : Container(
                                 height: 180,
                                 padding: const EdgeInsets.all(16),
@@ -458,15 +474,20 @@ class _MomentsPageState extends ConsumerState<MomentsPage> {
                                         OutlinedButton.icon(
                                           onPressed: () =>
                                               _confirmAndDeleteMoment(
-                                                  context, pair, doc.id),
+                                                context,
+                                                pair,
+                                                doc.id,
+                                              ),
                                           icon: const Icon(
-                                              Icons.delete_outline_rounded,
-                                              size: 16),
+                                            Icons.delete_outline_rounded,
+                                            size: 16,
+                                          ),
                                           label: const Text('Delete'),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: AppColors.error,
                                             side: const BorderSide(
-                                                color: AppColors.error),
+                                              color: AppColors.error,
+                                            ),
                                             visualDensity:
                                                 VisualDensity.compact,
                                           ),

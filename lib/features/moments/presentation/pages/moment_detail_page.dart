@@ -193,20 +193,25 @@ class MomentDetailPage extends ConsumerWidget {
           body: Column(
             children: [
               Expanded(
-                child: (data['downloadUrl'] is String &&
+                child:
+                    (data['downloadUrl'] is String &&
                         (data['downloadUrl'] as String).isNotEmpty)
                     ? InteractiveViewer(
                         minScale: 0.8,
                         maxScale: 4.0,
                         child: Center(
-                          child: (data['downloadUrl'] as String)
-                                  .startsWith('data:image')
+                          child:
+                              (data['downloadUrl'] as String).startsWith(
+                                'data:image',
+                              )
                               ? Image.memory(
                                   base64Decode(
-                                    (data['downloadUrl'] as String).contains(',')
+                                    (data['downloadUrl'] as String).contains(
+                                          ',',
+                                        )
                                         ? (data['downloadUrl'] as String)
-                                            .split(',')
-                                            .last
+                                              .split(',')
+                                              .last
                                         : data['downloadUrl'] as String,
                                   ),
                                   fit: BoxFit.contain,
@@ -214,8 +219,7 @@ class MomentDetailPage extends ConsumerWidget {
                               : Image.network(
                                   data['downloadUrl'] as String,
                                   fit: BoxFit.contain,
-                                  loadingBuilder:
-                                      (context, child, progress) {
+                                  loadingBuilder: (context, child, progress) {
                                     if (progress == null) return child;
                                     return const Center(
                                       child: CircularProgressIndicator(
@@ -227,43 +231,47 @@ class MomentDetailPage extends ConsumerWidget {
                         ),
                       )
                     : (storagePath != null && storagePath.isNotEmpty
-                        ? FutureBuilder<String>(
-                            future: ref
-                                .read(momentsServiceProvider)
-                                .downloadUrl(storagePath),
-                            builder: (context, urlSnapshot) {
-                              if (urlSnapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.dustyRose,
+                          ? FutureBuilder<String>(
+                              future: ref
+                                  .read(momentsServiceProvider)
+                                  .downloadUrl(storagePath),
+                              builder: (context, urlSnapshot) {
+                                if (urlSnapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColors.dustyRose,
+                                    ),
+                                  );
+                                }
+                                if (urlSnapshot.hasError ||
+                                    !urlSnapshot.hasData) {
+                                  return const Center(
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      color: Colors.white54,
+                                      size: 56,
+                                    ),
+                                  );
+                                }
+                                return InteractiveViewer(
+                                  minScale: 0.8,
+                                  maxScale: 4.0,
+                                  child: Center(
+                                    child: Image.network(
+                                      urlSnapshot.data!,
+                                      fit: BoxFit.contain,
+                                    ),
                                   ),
                                 );
-                              }
-                              if (urlSnapshot.hasError || !urlSnapshot.hasData) {
-                                return const Center(
-                                  child: Icon(
-                                    Icons.broken_image,
-                                    color: Colors.white54,
-                                    size: 56,
-                                  ),
-                                );
-                              }
-                              return InteractiveViewer(
-                                minScale: 0.8,
-                                maxScale: 4.0,
-                                child: Center(
-                                  child: Image.network(
-                                    urlSnapshot.data!,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              );
-                            },
-                          )
-                        : const Center(
-                            child: Icon(Icons.broken_image, color: Colors.white54),
-                          )),
+                              },
+                            )
+                          : const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                color: Colors.white54,
+                              ),
+                            )),
               ),
 
               // ── Caption & Timestamp Footer ──────────────────────────────

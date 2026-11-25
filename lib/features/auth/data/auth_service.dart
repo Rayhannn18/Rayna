@@ -9,9 +9,9 @@ class AuthService {
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
@@ -24,8 +24,10 @@ class AuthService {
   Future<bool> isUsernameAvailable(String username) async {
     final cleanUsername = username.trim().toLowerCase();
     if (cleanUsername.isEmpty) return false;
-    final doc =
-        await _firestore.collection('usernames').doc(cleanUsername).get();
+    final doc = await _firestore
+        .collection('usernames')
+        .doc(cleanUsername)
+        .get();
     return !doc.exists;
   }
 
@@ -41,13 +43,12 @@ class AuthService {
     required String username,
     required String email,
     required String password,
-  }) =>
-      signUp(
-        email: email,
-        password: password,
-        displayName: displayName,
-        username: username,
-      );
+  }) => signUp(
+    email: email,
+    password: password,
+    displayName: displayName,
+    username: username,
+  );
 
   Future<void> signUp({
     required String email,
@@ -73,8 +74,9 @@ class AuthService {
 
     try {
       await _firestore.runTransaction((transaction) async {
-        final usernameRef =
-            _firestore.collection('usernames').doc(cleanUsername);
+        final usernameRef = _firestore
+            .collection('usernames')
+            .doc(cleanUsername);
         final usernameDoc = await transaction.get(usernameRef);
         if (usernameDoc.exists) {
           throw const UsernameAlreadyTakenException();
@@ -175,7 +177,8 @@ class AuthService {
     }
 
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
-    final usernameKey = userDoc.data()?['usernameLower'] as String? ??
+    final usernameKey =
+        userDoc.data()?['usernameLower'] as String? ??
         userDoc.data()?['username']?.toString().toLowerCase();
 
     await _firestore.collection('users').doc(user.uid).update(updates);
@@ -190,10 +193,10 @@ class AuthService {
         } else if (photoUrl != null) {
           usernameUpdates['photoURL'] = photoUrl;
         }
-        await _firestore.collection('usernames').doc(usernameKey).set(
-          usernameUpdates,
-          SetOptions(merge: true),
-        );
+        await _firestore
+            .collection('usernames')
+            .doc(usernameKey)
+            .set(usernameUpdates, SetOptions(merge: true));
       } catch (_) {}
     }
     await user.updateDisplayName(trimmedName);
