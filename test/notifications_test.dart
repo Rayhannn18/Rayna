@@ -59,7 +59,7 @@ void main() {
         onNavigate: (r) => navigatedRoute = r,
       );
       service.handlePayload({'type': 'pairing_request'});
-      expect(navigatedRoute, equals('/pairing/requests'));
+      expect(navigatedRoute, equals('/pending-requests'));
     });
 
     test('Empty payload handles gracefully without error', () {

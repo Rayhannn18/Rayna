@@ -68,7 +68,7 @@ class OnboardingPage extends StatelessWidget {
               // ── Buttons ─────────────────────────────────────────────
               RaynaButton(
                 label: 'Get Started',
-                onPressed: () => context.go(AppRoutes.register),
+                onPressed: () => context.push(AppRoutes.register),
               ),
 
               const SizedBox(height: 12),
@@ -76,7 +76,7 @@ class OnboardingPage extends StatelessWidget {
               RaynaButton(
                 label: 'I already have an account',
                 outlined: true,
-                onPressed: () => context.go(AppRoutes.login),
+                onPressed: () => context.push(AppRoutes.login),
               ),
 
               const SizedBox(height: 32),

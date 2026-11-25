@@ -25,8 +25,9 @@ final batteryServiceProvider = Provider<BatteryService>((ref) {
 });
 
 /// Stream provider for the current device's GPS position
-final userLocationStreamProvider =
-    StreamProvider.autoDispose<Position>((ref) async* {
+final userLocationStreamProvider = StreamProvider.autoDispose<Position>((
+  ref,
+) async* {
   final service = ref.watch(locationServiceProvider);
   final hasPermission = await service.checkAndRequestPermission();
   if (!hasPermission) return;
@@ -40,17 +41,17 @@ final currentUserPositionProvider = StateProvider<Position?>((ref) => null);
 /// Stream provider for the active pair document
 final activePairDocumentProvider =
     StreamProvider.autoDispose<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
-  final userDoc = ref.watch(currentUserDocumentProvider);
-  final pairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
-  if (pairId == null || pairId.isEmpty) {
-    return Stream.value(null);
-  }
+      final userDoc = ref.watch(currentUserDocumentProvider);
+      final pairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
+      if (pairId == null || pairId.isEmpty) {
+        return Stream.value(null);
+      }
 
-  return FirebaseFirestore.instance
-      .collection('pairs')
-      .doc(pairId)
-      .snapshots();
-});
+      return FirebaseFirestore.instance
+          .collection('pairs')
+          .doc(pairId)
+          .snapshots();
+    });
 
 /// Provider returning the partner's UID
 final partnerUidProvider = Provider.autoDispose<String?>((ref) {
@@ -74,57 +75,57 @@ final partnerUidProvider = Provider.autoDispose<String?>((ref) {
 /// Stream provider for partner's public profile data (displayName, photoURL)
 final partnerProfileProvider =
     StreamProvider.autoDispose<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
-  final partnerUid = ref.watch(partnerUidProvider);
-  if (partnerUid == null || partnerUid.isEmpty) {
-    return Stream.value(null);
-  }
+      final partnerUid = ref.watch(partnerUidProvider);
+      if (partnerUid == null || partnerUid.isEmpty) {
+        return Stream.value(null);
+      }
 
-  return FirebaseFirestore.instance
-      .collection('users')
-      .doc(partnerUid)
-      .snapshots();
-});
+      return FirebaseFirestore.instance
+          .collection('users')
+          .doc(partnerUid)
+          .snapshots();
+    });
 
 /// Stream provider for partner's live GPS location document
 final partnerLocationStreamProvider =
     StreamProvider.autoDispose<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
-  final userDoc = ref.watch(currentUserDocumentProvider);
-  final pairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
-  final partnerUid = ref.watch(partnerUidProvider);
+      final userDoc = ref.watch(currentUserDocumentProvider);
+      final pairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
+      final partnerUid = ref.watch(partnerUidProvider);
 
-  if (pairId == null ||
-      pairId.isEmpty ||
-      partnerUid == null ||
-      partnerUid.isEmpty) {
-    return Stream.value(null);
-  }
+      if (pairId == null ||
+          pairId.isEmpty ||
+          partnerUid == null ||
+          partnerUid.isEmpty) {
+        return Stream.value(null);
+      }
 
-  return FirebaseFirestore.instance
-      .collection('pairs')
-      .doc(pairId)
-      .collection('locations')
-      .doc(partnerUid)
-      .snapshots();
-});
+      return FirebaseFirestore.instance
+          .collection('pairs')
+          .doc(pairId)
+          .collection('locations')
+          .doc(partnerUid)
+          .snapshots();
+    });
 
 /// Stream provider for partner's live battery status document
 final partnerDeviceStatusStreamProvider =
     StreamProvider.autoDispose<DocumentSnapshot<Map<String, dynamic>>?>((ref) {
-  final userDoc = ref.watch(currentUserDocumentProvider);
-  final pairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
-  final partnerUid = ref.watch(partnerUidProvider);
+      final userDoc = ref.watch(currentUserDocumentProvider);
+      final pairId = userDoc.valueOrNull?.data()?['activePairId'] as String?;
+      final partnerUid = ref.watch(partnerUidProvider);
 
-  if (pairId == null ||
-      pairId.isEmpty ||
-      partnerUid == null ||
-      partnerUid.isEmpty) {
-    return Stream.value(null);
-  }
+      if (pairId == null ||
+          pairId.isEmpty ||
+          partnerUid == null ||
+          partnerUid.isEmpty) {
+        return Stream.value(null);
+      }
 
-  return FirebaseFirestore.instance
-      .collection('pairs')
-      .doc(pairId)
-      .collection('deviceStatus')
-      .doc(partnerUid)
-      .snapshots();
-});
+      return FirebaseFirestore.instance
+          .collection('pairs')
+          .doc(pairId)
+          .collection('deviceStatus')
+          .doc(partnerUid)
+          .snapshots();
+    });

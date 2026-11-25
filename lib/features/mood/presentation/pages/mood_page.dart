@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../pairing/providers/pairing_providers.dart';
+import '../../data/mood_config.dart';
+import '../../data/mood_service.dart';
 import '../../providers/mood_providers.dart';
+import '../widgets/mood_history_section.dart';
 
 class MoodPage extends ConsumerStatefulWidget {
   const MoodPage({super.key});
@@ -14,17 +17,6 @@ class MoodPage extends ConsumerStatefulWidget {
 }
 
 class _MoodPageState extends ConsumerState<MoodPage> {
-  static const List<Map<String, dynamic>> moods = [
-    {'name': 'Happy', 'emoji': '😊'},
-    {'name': 'Love', 'emoji': '🥰'},
-    {'name': 'Calm', 'emoji': '😌'},
-    {'name': 'Excited', 'emoji': '✨'},
-    {'name': 'Missing You', 'emoji': '🥺'},
-    {'name': 'Tired', 'emoji': '🥱'},
-    {'name': 'Sad', 'emoji': '😢'},
-    {'name': 'Stressed', 'emoji': '😮‍💨'},
-  ];
-
   final noteController = TextEditingController();
   String? selected;
   bool saving = false;
@@ -43,12 +35,8 @@ class _MoodPageState extends ConsumerState<MoodPage> {
       return;
     }
 
-    final pair =
-        ref
-                .read(currentUserDocumentProvider)
-                .valueOrNull
-                ?.data()?['activePairId']
-            as String?;
+    final userData = ref.read(currentUserDocumentProvider).valueOrNull?.data();
+    final pair = userData?['activePairId'] as String?;
 
     if (pair == null || pair.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -57,12 +45,21 @@ class _MoodPageState extends ConsumerState<MoodPage> {
       return;
     }
 
+    final displayName = userData?['displayName'] as String?;
+
     setState(() => saving = true);
     try {
       await ref
           .read(moodServiceProvider)
-          .setMood(pairId: pair, mood: selected!, note: noteController.text);
+          .setMood(
+            pairId: pair,
+            mood: selected!,
+            note: noteController.text,
+            displayName: displayName,
+          );
       if (mounted) {
+        noteController.clear();
+        FocusScope.of(context).unfocus();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Mood shared with your partner!'),
@@ -70,10 +67,19 @@ class _MoodPageState extends ConsumerState<MoodPage> {
           ),
         );
       }
-    } catch (e) {
+    } on MoodException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not share mood. Please try again.'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -83,6 +89,10 @@ class _MoodPageState extends ConsumerState<MoodPage> {
 
   @override
   Widget build(BuildContext context) {
+    final userDoc = ref.watch(currentUserDocumentProvider);
+    final activePairId =
+        userDoc.valueOrNull?.data()?['activePairId'] as String?;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -96,7 +106,7 @@ class _MoodPageState extends ConsumerState<MoodPage> {
             : null,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 110),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
         children: [
           Text('How are you feeling?', style: AppTextStyles.h2),
           const SizedBox(height: 6),
@@ -110,14 +120,12 @@ class _MoodPageState extends ConsumerState<MoodPage> {
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: moods.map((m) {
-              final name = m['name'] as String;
-              final emoji = m['emoji'] as String;
-              final isChosen = selected == name;
+            children: MoodConfig.checkInMoods.map((m) {
+              final isChosen = selected == m.name;
 
               return ChoiceChip(
-                avatar: Text(emoji, style: const TextStyle(fontSize: 16)),
-                label: Text(name),
+                avatar: Text(m.emoji, style: const TextStyle(fontSize: 16)),
+                label: Text(m.name),
                 selected: isChosen,
                 selectedColor: AppColors.dustyRose.withValues(alpha: 0.20),
                 backgroundColor: AppColors.white,
@@ -132,7 +140,7 @@ class _MoodPageState extends ConsumerState<MoodPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                onSelected: (_) => setState(() => selected = name),
+                onSelected: (_) => setState(() => selected = m.name),
               );
             }).toList(),
           ),
@@ -184,6 +192,13 @@ class _MoodPageState extends ConsumerState<MoodPage> {
                     ),
                   )
                 : const Text('Share Mood with Partner'),
+          ),
+          const SizedBox(height: 28),
+          const Divider(color: AppColors.divider, height: 1),
+          const SizedBox(height: 24),
+          MoodHistorySection(
+            pairId: activePairId,
+            isUserDocLoading: userDoc.isLoading,
           ),
         ],
       ),

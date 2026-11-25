@@ -287,7 +287,10 @@ class ProfilePage extends ConsumerWidget {
 
     if (confirmed != true || !context.mounted) return;
     try {
-      await ref.read(pairingServiceProvider).leavePair();
+      await ref
+          .read(pairingServiceProvider)
+          .leavePair()
+          .timeout(const Duration(seconds: 12));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -300,6 +303,15 @@ class ProfilePage extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message), backgroundColor: AppColors.error),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not disconnect right now. Please try again.'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }

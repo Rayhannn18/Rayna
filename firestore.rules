@@ -15,13 +15,19 @@ service cloud.firestore {
         && request.resource.data.usernameLower is string;
       // Authenticated users can read basic profiles for partner search and pairing.
       allow read: if signedIn();
-      // Owner has full update rights. Connected partner in an atomic transaction
-      // can only update activePairId and updatedAt when forming or leaving a pair.
+      // Owner has full update rights. Connected partner can update activePairId
+      // and updatedAt when forming or leaving a shared pair.
       allow update: if owner(uid)
         || (signedIn()
           && request.resource.data.activePairId is string
           && request.auth.uid in getAfter(/databases/$(database)/documents/pairs/$(request.resource.data.activePairId)).data.memberUids
           && uid in getAfter(/databases/$(database)/documents/pairs/$(request.resource.data.activePairId)).data.memberUids
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activePairId', 'updatedAt']))
+        || (signedIn()
+          && resource.data.activePairId is string
+          && !('activePairId' in request.resource.data)
+          && request.auth.uid in get(/databases/$(database)/documents/pairs/$(resource.data.activePairId)).data.memberUids
+          && uid in get(/databases/$(database)/documents/pairs/$(resource.data.activePairId)).data.memberUids
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activePairId', 'updatedAt']));
       allow delete: if false;
     }
@@ -34,19 +40,22 @@ service cloud.firestore {
         && request.resource.data.username is string;
       allow update: if signedIn()
         && resource.data.uid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'updatedAt', 'photoURL']);
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
     match /connectionRequests/{requestId} {
       allow create: if signedIn()
         && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid.size() > 0
         && request.resource.data.toUid != request.auth.uid
         && request.resource.data.status == 'pending';
       allow read: if signedIn()
         && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
       allow update: if signedIn()
         && resource.data.toUid == request.auth.uid
+        && resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
         && request.resource.data.status in ['accepted', 'rejected'];
       allow delete: if signedIn() && resource.data.fromUid == request.auth.uid;
@@ -82,6 +91,14 @@ service cloud.firestore {
           && resource.data.senderUid == request.auth.uid;
         allow delete: if pairMember(pairId)
           && resource.data.senderUid == request.auth.uid;
+
+        match /reactions/{uid} {
+          allow read: if pairMember(pairId);
+          allow create, update: if pairMember(pairId)
+            && owner(uid)
+            && request.resource.data.uid == request.auth.uid;
+          allow delete: if pairMember(pairId) && owner(uid);
+        }
       }
 
       match /moods/{uid} {
@@ -90,6 +107,46 @@ service cloud.firestore {
           && owner(uid)
           && request.resource.data.uid == request.auth.uid;
         allow delete: if pairMember(pairId) && owner(uid);
+      }
+
+      match /moodHistory/{historyId} {
+        allow read: if pairMember(pairId);
+        allow create: if pairMember(pairId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.pairId == pairId
+          && user(request.auth.uid).activePairId == pairId
+          && request.resource.data.mood is string
+          && request.resource.data.category is string;
+        allow update: if false; // Mood history entries are immutable
+        allow delete: if pairMember(pairId)
+          && resource.data.uid == request.auth.uid;
+
+        match /responses/{responseId} {
+          allow read: if pairMember(pairId);
+          allow create, update: if pairMember(pairId)
+            && request.resource.data.uid == request.auth.uid;
+          allow delete: if pairMember(pairId)
+            && resource.data.uid == request.auth.uid;
+        }
+      }
+
+      match /speedAlerts/{alertId} {
+        allow read: if pairMember(pairId);
+        allow create: if pairMember(pairId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.pairId == pairId
+          && request.resource.data.speedKmh is number;
+        allow update: if false;
+        allow delete: if pairMember(pairId)
+          && resource.data.uid == request.auth.uid;
+
+        match /responses/{responseId} {
+          allow read: if pairMember(pairId);
+          allow create, update: if pairMember(pairId)
+            && request.resource.data.uid == request.auth.uid;
+          allow delete: if pairMember(pairId)
+            && resource.data.uid == request.auth.uid;
+        }
       }
 
       match /messages/{messageId} {

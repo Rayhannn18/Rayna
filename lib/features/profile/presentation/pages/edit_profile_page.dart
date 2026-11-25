@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,9 +63,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 75,
+        maxWidth: 384,
+        maxHeight: 384,
+        imageQuality: 70,
       );
       if (picked != null) {
         final bytes = await picked.readAsBytes();

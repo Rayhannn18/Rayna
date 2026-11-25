@@ -160,10 +160,18 @@ class AuthService {
     }
     if (removePhoto) {
       updates['photoURL'] = FieldValue.delete();
-      await user.updatePhotoURL(null);
+      try {
+        await user.updatePhotoURL(null);
+      } catch (_) {}
     } else if (photoUrl != null) {
       updates['photoURL'] = photoUrl;
-      await user.updatePhotoURL(photoUrl);
+      // Firebase Auth enforces a strict length limit (~2048 chars) on photoURL,
+      // so only sync short network URLs to Auth; base64 data URIs are stored in Firestore.
+      if (!photoUrl.startsWith('data:image') && photoUrl.length <= 2000) {
+        try {
+          await user.updatePhotoURL(photoUrl);
+        } catch (_) {}
+      }
     }
 
     final userDoc = await _firestore.collection('users').doc(user.uid).get();

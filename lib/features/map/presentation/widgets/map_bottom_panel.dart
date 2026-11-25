@@ -64,7 +64,9 @@ class MapBottomInfoPanel extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white.withValues(alpha: 0.94),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.white.withValues(alpha: 0.95)),
+              border: Border.all(
+                color: AppColors.white.withValues(alpha: 0.95),
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -75,9 +77,13 @@ class MapBottomInfoPanel extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 17,
-                      backgroundColor: AppColors.dustyRose.withValues(alpha: 0.18),
+                      backgroundColor: AppColors.dustyRose.withValues(
+                        alpha: 0.18,
+                      ),
                       child: Text(
-                        (partnerName?.isNotEmpty == true ? partnerName![0] : 'P')
+                        (partnerName?.isNotEmpty == true
+                                ? partnerName![0]
+                                : 'P')
                             .toUpperCase(),
                         style: AppTextStyles.h3.copyWith(
                           color: AppColors.dustyRose,
@@ -284,7 +290,9 @@ class MapBottomInfoPanel extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white.withValues(alpha: 0.94),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppColors.white.withValues(alpha: 0.95)),
+              border: Border.all(
+                color: AppColors.white.withValues(alpha: 0.95),
+              ),
             ),
             child: Row(
               children: [
@@ -326,7 +334,10 @@ class MapBottomInfoPanel extends StatelessWidget {
                     backgroundColor: AppColors.dustyRose,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/notifications/notification_preferences.dart';
 import '../../../../core/notifications/notification_providers.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -21,7 +22,7 @@ class NotificationSettingsPage extends ConsumerStatefulWidget {
 
 class _NotificationSettingsPageState
     extends ConsumerState<NotificationSettingsPage> {
-  bool _isSendingTest = false;
+  String? _sendingTestType;
 
   Future<void> _updateSetting(String key, dynamic value) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -35,19 +36,45 @@ class _NotificationSettingsPageState
     }
   }
 
+  Future<void> _sendTest(String type, NotificationPreferences prefs) async {
+    if (_sendingTestType != null) return;
+    setState(() => _sendingTestType = type);
+    try {
+      await ref
+          .read(notificationServiceProvider)
+          .showTestSmartNotification(type: type, preferences: prefs);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Test notification dispatched! Check your notification shade.',
+            ),
+            backgroundColor: AppColors.dustyRose,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send test: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sendingTestType = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userDoc =
         ref.watch(currentUserDocumentProvider).valueOrNull?.data() ?? {};
-    final settings =
-        (userDoc['notificationSettings'] as Map<String, dynamic>?) ?? {};
-
-    final moments = settings['moments'] as bool? ?? true;
-    final messages = settings['messages'] as bool? ?? true;
-    final mood = settings['mood'] as bool? ?? true;
-    final dailyReminder = settings['dailyReminder'] as bool? ?? false;
-    final randomReminder = settings['randomReminder'] as bool? ?? false;
-    final previews = settings['previews'] as bool? ?? false;
+    final prefs = NotificationPreferences.fromMap(
+      userDoc['notificationSettings'] as Map<String, dynamic>?,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -69,6 +96,32 @@ class _NotificationSettingsPageState
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
+          // ── Master Toggle ────────────────────────────────────────────────
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: AppColors.warmGray),
+            ),
+            child: SwitchListTile(
+              secondary: const Icon(
+                Icons.notifications_active_rounded,
+                color: AppColors.dustyRose,
+              ),
+              title: Text(
+                'Enable All Notifications',
+                style: AppTextStyles.labelLarge,
+              ),
+              subtitle: const Text(
+                'Master switch for all Rayna partner alerts and reminders',
+              ),
+              value: prefs.allEnabled,
+              activeThumbColor: AppColors.dustyRose,
+              onChanged: (val) => _updateSetting('allEnabled', val),
+            ),
+          ),
+          const SizedBox(height: 22),
+
           // ── Section 1: Partner Activity ──────────────────────────────────
           _buildSectionHeader('Partner Activity', Icons.favorite_rounded),
           Card(
@@ -84,27 +137,15 @@ class _NotificationSettingsPageState
                     Icons.photo_library_outlined,
                     color: AppColors.dustyRose,
                   ),
-                  title: const Text('Shared Moments'),
+                  title: const Text('Moment Notifications'),
                   subtitle: const Text(
-                    'Get notified immediately when your partner shares a moment',
+                    'Get notified when your partner shares a new photo moment',
                   ),
-                  value: moments,
+                  value: prefs.moments,
                   activeThumbColor: AppColors.dustyRose,
-                  onChanged: (val) => _updateSetting('moments', val),
-                ),
-                const Divider(height: 1, indent: 56),
-                SwitchListTile(
-                  secondary: const Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: AppColors.dustyRose,
-                  ),
-                  title: const Text('Chat Messages'),
-                  subtitle: const Text(
-                    'Receive alerts for new incoming messages from partner',
-                  ),
-                  value: messages,
-                  activeThumbColor: AppColors.dustyRose,
-                  onChanged: (val) => _updateSetting('messages', val),
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('moments', val)
+                      : null,
                 ),
                 const Divider(height: 1, indent: 56),
                 SwitchListTile(
@@ -112,24 +153,71 @@ class _NotificationSettingsPageState
                     Icons.mood_rounded,
                     color: AppColors.dustyRose,
                   ),
-                  title: const Text('Mood Updates'),
+                  title: const Text('Mood Notifications'),
                   subtitle: const Text(
-                    'Know when your partner updates how they are feeling',
+                    'Know when your partner checks in their mood or sends a response',
                   ),
-                  value: mood,
+                  value: prefs.mood,
                   activeThumbColor: AppColors.dustyRose,
-                  onChanged: (val) => _updateSetting('mood', val),
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('mood', val)
+                      : null,
+                ),
+                const Divider(height: 1, indent: 56),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Message Notifications'),
+                  subtitle: const Text(
+                    'Receive alerts for new incoming private chat messages',
+                  ),
+                  value: prefs.messages,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('messages', val)
+                      : null,
+                ),
+                const Divider(height: 1, indent: 56),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.link_rounded,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Pairing Notifications'),
+                  subtitle: const Text(
+                    'Alerts for incoming connection requests and acceptances',
+                  ),
+                  value: prefs.pairing,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('pairing', val)
+                      : null,
+                ),
+                const Divider(height: 1, indent: 56),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.favorite_outline_rounded,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Reaction Notifications'),
+                  subtitle: const Text(
+                    'Know when your partner reacts to your shared moments',
+                  ),
+                  value: prefs.reactions,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('reactions', val)
+                      : null,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
-          // ── Section 2: Privacy ───────────────────────────────────────────
-          _buildSectionHeader(
-            'Privacy & Lock Screen',
-            Icons.lock_outline_rounded,
-          ),
+          // ── Section 2: Safety & Speed Alerts ─────────────────────────────
+          _buildSectionHeader('Safety & Speed Alerts', Icons.speed_rounded),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -138,31 +226,120 @@ class _NotificationSettingsPageState
             ),
             child: SwitchListTile(
               secondary: const Icon(
-                Icons.visibility_outlined,
+                Icons.warning_amber_rounded,
                 color: AppColors.dustyRose,
               ),
-              title: const Text('Show Photo Previews'),
+              title: const Text('Speed Alerts (80 km/h)'),
               subtitle: const Text(
-                'When disabled, photo thumbnails stay hidden on lock screen for couples privacy',
+                'Notify partner when GPS location speed stays at 80 km/h or above',
               ),
-              value: previews,
+              value: prefs.speedAlerts,
               activeThumbColor: AppColors.dustyRose,
-              onChanged: (val) async {
-                await _updateSetting('previews', val);
-                try {
-                  await FirebaseMessaging.instance
-                      .setForegroundNotificationPresentationOptions(
-                        alert: val,
-                        badge: true,
-                        sound: true,
-                      );
-                } catch (_) {}
-              },
+              onChanged: prefs.allEnabled
+                  ? (val) => _updateSetting('speedAlerts', val)
+                  : null,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
-          // ── Section 3: Connection Reminders ──────────────────────────────
+          // ── Section 3: Lock Screen, Sound & Vibration ────────────────────
+          _buildSectionHeader(
+            'Lock Screen, Sound & Privacy',
+            Icons.lock_outline_rounded,
+          ),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: AppColors.warmGray),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.visibility_outlined,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Show Photo Preview on Lock Screen'),
+                  subtitle: const Text(
+                    'Display Moment photo preview when supported by your Android lock screen',
+                  ),
+                  value: prefs.lockScreenPhotoPreview,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) async {
+                          await _updateSetting('lockScreenPhotoPreview', val);
+                          await _updateSetting('previews', val);
+                          try {
+                            await FirebaseMessaging.instance
+                                .setForegroundNotificationPresentationOptions(
+                                  alert: val,
+                                  badge: true,
+                                  sound: prefs.sound,
+                                );
+                          } catch (_) {}
+                        }
+                      : null,
+                ),
+                const Divider(height: 1, indent: 56),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.privacy_tip_outlined,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Hide Content on Lock Screen'),
+                  subtitle: const Text(
+                    'Mask photo previews and message text for extra couple privacy',
+                  ),
+                  value: prefs.hideContentOnLockScreen,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('hideContentOnLockScreen', val)
+                      : null,
+                ),
+                const Divider(height: 1, indent: 56),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.volume_up_outlined,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Notification Sound'),
+                  value: prefs.sound,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('sound', val)
+                      : null,
+                ),
+                const Divider(height: 1, indent: 56),
+                SwitchListTile(
+                  secondary: const Icon(
+                    Icons.vibration_rounded,
+                    color: AppColors.dustyRose,
+                  ),
+                  title: const Text('Vibration'),
+                  value: prefs.vibration,
+                  activeThumbColor: AppColors.dustyRose,
+                  onChanged: prefs.allEnabled
+                      ? (val) => _updateSetting('vibration', val)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Text(
+              'Note: Final lock screen appearance and photo preview visibility always respect your Android OS and device privacy settings.',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+
+          // ── Section 4: Connection Reminders ──────────────────────────────
           _buildSectionHeader('Connection Reminders', Icons.alarm_rounded),
           Card(
             elevation: 0,
@@ -181,20 +358,22 @@ class _NotificationSettingsPageState
                   subtitle: const Text(
                     'A gentle 8:00 PM reminder to share a moment together',
                   ),
-                  value: dailyReminder,
+                  value: prefs.dailyReminder,
                   activeThumbColor: AppColors.dustyRose,
-                  onChanged: (val) async {
-                    await _updateSetting('dailyReminder', val);
-                    if (val) {
-                      await ref
-                          .read(localReminderServiceProvider)
-                          .scheduleDailyReminder(hour: 20, minute: 0);
-                    } else {
-                      await ref
-                          .read(localReminderServiceProvider)
-                          .cancelDailyReminder();
-                    }
-                  },
+                  onChanged: prefs.allEnabled
+                      ? (val) async {
+                          await _updateSetting('dailyReminder', val);
+                          if (val) {
+                            await ref
+                                .read(localReminderServiceProvider)
+                                .scheduleDailyReminder(hour: 20, minute: 0);
+                          } else {
+                            await ref
+                                .read(localReminderServiceProvider)
+                                .cancelDailyReminder();
+                          }
+                        }
+                      : null,
                 ),
                 const Divider(height: 1, indent: 56),
                 SwitchListTile(
@@ -206,30 +385,32 @@ class _NotificationSettingsPageState
                   subtitle: const Text(
                     'Surprise prompt during the day to take a photo for your partner',
                   ),
-                  value: randomReminder,
+                  value: prefs.randomReminder,
                   activeThumbColor: AppColors.dustyRose,
-                  onChanged: (val) async {
-                    await _updateSetting('randomReminder', val);
-                    if (val) {
-                      await ref
-                          .read(localReminderServiceProvider)
-                          .scheduleRandomReminder();
-                    } else {
-                      await ref
-                          .read(localReminderServiceProvider)
-                          .cancelReminder();
-                    }
-                  },
+                  onChanged: prefs.allEnabled
+                      ? (val) async {
+                          await _updateSetting('randomReminder', val);
+                          if (val) {
+                            await ref
+                                .read(localReminderServiceProvider)
+                                .scheduleRandomReminder();
+                          } else {
+                            await ref
+                                .read(localReminderServiceProvider)
+                                .cancelReminder();
+                          }
+                        }
+                      : null,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
-          // ── Section 4: Testing & Diagnostics ─────────────────────────────
+          // ── Section 5: Test Notifications ────────────────────────────────
           _buildSectionHeader(
-            'Diagnostics & Testing',
-            Icons.notifications_active_outlined,
+            'Test Notifications',
+            Icons.notifications_none_rounded,
           ),
           Card(
             elevation: 0,
@@ -243,79 +424,40 @@ class _NotificationSettingsPageState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Test Notification Delivery',
+                    'Preview on Your Device',
                     style: AppTextStyles.h3.copyWith(fontSize: 16),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
-                    'Tap below to verify that notification banners, sound, and deep linking are functioning on your device.',
-                    style: AppTextStyles.bodyMedium.copyWith(
+                    'Test Moment, Mood, and Speed Alert notifications locally without sending anything to your partner.',
+                    style: AppTextStyles.bodySmall.copyWith(
                       color: AppColors.textSecondary,
-                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSendingTest
-                          ? null
-                          : () async {
-                              setState(() => _isSendingTest = true);
-                              try {
-                                await ref
-                                    .read(localReminderServiceProvider)
-                                    .showTestNotification();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Test notification dispatched! Check your notification bar.',
-                                      ),
-                                      backgroundColor: AppColors.dustyRose,
-                                      duration: Duration(seconds: 3),
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Failed to send test: $e'),
-                                      backgroundColor: AppColors.error,
-                                    ),
-                                  );
-                                }
-                              } finally {
-                                if (mounted) {
-                                  setState(() => _isSendingTest = false);
-                                }
-                              }
-                            },
-                      icon: _isSendingTest
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send_rounded),
-                      label: Text(
-                        _isSendingTest
-                            ? 'Sending...'
-                            : 'Send Test Notification',
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildTestChip(
+                        label: 'Test Moment',
+                        icon: Icons.photo_camera_outlined,
+                        type: 'moment',
+                        prefs: prefs,
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.dustyRose,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                      _buildTestChip(
+                        label: 'Test Mood',
+                        icon: Icons.mood_rounded,
+                        type: 'mood',
+                        prefs: prefs,
                       ),
-                    ),
+                      _buildTestChip(
+                        label: 'Test Speed Alert',
+                        icon: Icons.speed_rounded,
+                        type: 'speed_alert',
+                        prefs: prefs,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -323,6 +465,35 @@ class _NotificationSettingsPageState
           ),
           const SizedBox(height: 32),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTestChip({
+    required String label,
+    required IconData icon,
+    required String type,
+    required NotificationPreferences prefs,
+  }) {
+    final isLoading = _sendingTestType == type;
+    return OutlinedButton.icon(
+      onPressed: _sendingTestType != null ? null : () => _sendTest(type, prefs),
+      icon: isLoading
+          ? const SizedBox(
+              width: 15,
+              height: 15,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.dustyRose,
+              ),
+            )
+          : Icon(icon, size: 17),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.dustyRose,
+        side: BorderSide(color: AppColors.dustyRose.withValues(alpha: 0.45)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }

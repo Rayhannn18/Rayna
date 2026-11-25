@@ -41,8 +41,9 @@ class MapFloatingControls extends ConsumerWidget {
           icon: isSatellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
           isActive: isSatellite,
           onTap: () {
-            ref.read(mapTypeProvider.notifier).state =
-                isSatellite ? MapType.normal : MapType.satellite;
+            ref.read(mapTypeProvider.notifier).state = isSatellite
+                ? MapType.normal
+                : MapType.satellite;
           },
         ),
         const SizedBox(height: 10),
@@ -50,7 +51,9 @@ class MapFloatingControls extends ConsumerWidget {
         // Movement Trail Toggle
         if (onToggleTrail != null) ...[
           _buildGlassButton(
-            tooltip: isTrailVisible ? 'Hide Movement Trail' : 'Show Movement Trail',
+            tooltip: isTrailVisible
+                ? 'Hide Movement Trail'
+                : 'Show Movement Trail',
             icon: Icons.route_rounded,
             isActive: isTrailVisible,
             onTap: onToggleTrail!,
@@ -189,4 +192,3 @@ class MapFloatingControls extends ConsumerWidget {
     );
   }
 }
-

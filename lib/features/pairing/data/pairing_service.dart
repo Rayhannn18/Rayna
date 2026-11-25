@@ -24,10 +24,40 @@ class PairingService {
     return _firestore.collection('users').doc(uid).snapshots();
   }
 
+  /// Normalizes a raw username input (strips leading `@`, trims, lowercases).
+  static String normalizeUsername(String raw) {
+    return raw.trim().replaceFirst(RegExp(r'^@+'), '').toLowerCase();
+  }
+
+  /// Filters a list of raw connectionRequest maps/docs to `pending` only and
+  /// sorts newest-first (treating unresolved server timestamps as newest).
+  static List<QueryDocumentSnapshot<Map<String, dynamic>>>
+  filterAndSortPendingRequests(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final pending = docs
+        .where((doc) => doc.data()['status'] == 'pending')
+        .toList();
+    pending.sort((a, b) {
+      final aTs = a.data()['createdAt'] as Timestamp?;
+      final bTs = b.data()['createdAt'] as Timestamp?;
+      if (aTs == null && bTs == null) return 0;
+      if (aTs == null) return -1; // Pending server timestamp is newest
+      if (bTs == null) return 1;
+      return bTs.compareTo(aTs);
+    });
+    return pending;
+  }
+
   /// Search for a user by username (case-insensitive) without exposing email or private data.
   Future<Map<String, dynamic>?> searchUsername(String username) async {
-    final lower = username.trim().toLowerCase();
+    final lower = normalizeUsername(username);
     if (lower.isEmpty) return null;
+
+    final currentUid = _uidOrNull;
+    if (currentUid == null) {
+      throw const PairingException('Please sign in first.');
+    }
 
     // 1. Direct O(1) lookup in public usernames directory
     final usernameDoc = await _firestore
@@ -36,11 +66,28 @@ class PairingService {
         .get();
     if (usernameDoc.exists) {
       final uData = usernameDoc.data()!;
-      if (uData['uid'] == _uid) return null;
+      final foundUid = (uData['uid'] as String?)?.trim() ?? '';
+      if (foundUid.isEmpty || foundUid == currentUid) return null;
+
+      // Verify the referenced user document exists and read authoritative fields
+      final userDoc = await _firestore.collection('users').doc(foundUid).get();
+      if (!userDoc.exists) return null;
+      final userData = userDoc.data() ?? <String, dynamic>{};
+      final resolvedUsername =
+          (userData['username'] as String?)?.trim() ??
+          (uData['username'] as String?)?.trim() ??
+          lower;
+      final resolvedDisplayName =
+          (userData['displayName'] as String?)?.trim() ??
+          (uData['displayName'] as String?)?.trim() ??
+          resolvedUsername;
+
       return {
-        'uid': uData['uid'],
-        'username': uData['username'],
-        'displayName': uData['displayName'] ?? uData['username'],
+        'uid': foundUid,
+        'username': resolvedUsername,
+        'displayName': resolvedDisplayName.isNotEmpty
+            ? resolvedDisplayName
+            : resolvedUsername,
       };
     }
 
@@ -51,12 +98,19 @@ class PairingService {
         .limit(1)
         .get();
     if (query.docs.isEmpty) return null;
-    final data = query.docs.first.data();
-    if (data['uid'] == _uid) return null;
+    final doc = query.docs.first;
+    final data = doc.data();
+    final foundUid = (data['uid'] as String?)?.trim() ?? doc.id;
+    if (foundUid.isEmpty || foundUid == currentUid) return null;
+    final resolvedUsername = (data['username'] as String?)?.trim() ?? lower;
+    final resolvedDisplayName =
+        (data['displayName'] as String?)?.trim() ?? resolvedUsername;
     return {
-      'uid': data['uid'],
-      'username': data['username'],
-      'displayName': data['displayName'] ?? data['username'],
+      'uid': foundUid,
+      'username': resolvedUsername,
+      'displayName': resolvedDisplayName.isNotEmpty
+          ? resolvedDisplayName
+          : resolvedUsername,
     };
   }
 
@@ -170,77 +224,124 @@ class PairingService {
   }
 
   /// Send a connection request to another user.
-  Future<void> sendConnectionRequest(String toUid) async {
-    if (toUid == _uid) {
+  Future<String> sendConnectionRequest(String toUid) async {
+    final currentUid = _uidOrNull;
+    if (currentUid == null) {
+      throw const PairingException('Please sign in first.');
+    }
+
+    final cleanToUid = toUid.trim();
+    if (cleanToUid.isEmpty) {
+      throw const PairingException('Invalid recipient user.');
+    }
+    if (cleanToUid == currentUid) {
       throw const PairingException('You cannot send a request to yourself.');
     }
-    final myDoc = await _userRef.get();
+
+    final myDoc = await _firestore.collection('users').doc(currentUid).get();
     final myData = myDoc.data() ?? <String, dynamic>{};
     if ((myData['activePairId'] as String?)?.isNotEmpty == true) {
       throw const PairingException('You already have an active partner.');
     }
-    final targetDoc = await _firestore.collection('users').doc(toUid).get();
+
+    final targetDoc = await _firestore
+        .collection('users')
+        .doc(cleanToUid)
+        .get();
     if (!targetDoc.exists) throw const PairingException('User not found.');
     final targetData = targetDoc.data() ?? <String, dynamic>{};
     if ((targetData['activePairId'] as String?)?.isNotEmpty == true) {
       throw const PairingException('This user already has a partner.');
     }
-    // Check duplicate pending
-    final existing = await _firestore
+
+    // Single-field equality queries guarantee zero composite-index failures
+    // and match `allow read: if fromUid == auth.uid || toUid == auth.uid`.
+    final mySentSnapshot = await _firestore
         .collection('connectionRequests')
-        .where('fromUid', isEqualTo: _uid)
-        .where('toUid', isEqualTo: toUid)
-        .where('status', isEqualTo: 'pending')
-        .limit(1)
+        .where('fromUid', isEqualTo: currentUid)
         .get();
-    if (existing.docs.isNotEmpty) {
+    final hasDuplicatePending = mySentSnapshot.docs.any((doc) {
+      final d = doc.data();
+      return d['toUid'] == cleanToUid && d['status'] == 'pending';
+    });
+    if (hasDuplicatePending) {
       throw const PairingException('You already sent a request to this user.');
     }
-    // Check reverse
-    final reverse = await _firestore
+
+    final myIncomingSnapshot = await _firestore
         .collection('connectionRequests')
-        .where('fromUid', isEqualTo: toUid)
-        .where('toUid', isEqualTo: _uid)
-        .where('status', isEqualTo: 'pending')
-        .limit(1)
+        .where('toUid', isEqualTo: currentUid)
         .get();
-    if (reverse.docs.isNotEmpty) {
+    final hasReversePending = myIncomingSnapshot.docs.any((doc) {
+      final d = doc.data();
+      return d['fromUid'] == cleanToUid && d['status'] == 'pending';
+    });
+    if (hasReversePending) {
       throw const PairingException(
         'This user already sent you a request. Check your pending requests.',
       );
     }
-    await _firestore.collection('connectionRequests').add({
-      'fromUid': _uid,
-      'fromUsername': myData['username'] ?? '',
-      'fromDisplayName': myData['displayName'] ?? '',
-      'toUid': toUid,
-      'toUsername': targetData['username'] ?? '',
-      'toDisplayName': targetData['displayName'] ?? '',
+
+    final fromUsername = (myData['username'] as String?)?.trim() ?? '';
+    final fromDisplayName =
+        (myData['displayName'] as String?)?.trim() ??
+        _auth.currentUser?.displayName?.trim() ??
+        fromUsername;
+    final toUsername = (targetData['username'] as String?)?.trim() ?? '';
+    final toDisplayName =
+        (targetData['displayName'] as String?)?.trim() ?? toUsername;
+
+    final docRef = await _firestore.collection('connectionRequests').add({
+      'fromUid': currentUid,
+      'fromUsername': fromUsername,
+      'fromDisplayName': fromDisplayName.isNotEmpty
+          ? fromDisplayName
+          : 'Rayna User',
+      'toUid': cleanToUid,
+      'toUsername': toUsername,
+      'toDisplayName': toDisplayName.isNotEmpty ? toDisplayName : 'Partner',
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
     });
+    return docRef.id;
+  }
+
+  /// Real-time stream of connection requests addressed to [uid].
+  ///
+  /// Uses a single-field equality filter (`toUid == uid`) so it works reliably
+  /// without requiring manual composite index deployment, while staying 100%
+  /// aligned with `allow read: if resource.data.toUid == request.auth.uid`.
+  Stream<QuerySnapshot<Map<String, dynamic>>> incomingRequestsStreamFor(
+    String uid,
+  ) {
+    if (uid.isEmpty) return const Stream.empty();
+    return _firestore
+        .collection('connectionRequests')
+        .where('toUid', isEqualTo: uid)
+        .snapshots();
+  }
+
+  /// Real-time stream of connection requests sent by [uid].
+  Stream<QuerySnapshot<Map<String, dynamic>>> outgoingRequestsStreamFor(
+    String uid,
+  ) {
+    if (uid.isEmpty) return const Stream.empty();
+    return _firestore
+        .collection('connectionRequests')
+        .where('fromUid', isEqualTo: uid)
+        .snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> get incomingRequestsStream {
     final uid = _uidOrNull;
     if (uid == null) return const Stream.empty();
-    return _firestore
-        .collection('connectionRequests')
-        .where('toUid', isEqualTo: uid)
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+    return incomingRequestsStreamFor(uid);
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> get outgoingRequestsStream {
     final uid = _uidOrNull;
     if (uid == null) return const Stream.empty();
-    return _firestore
-        .collection('connectionRequests')
-        .where('fromUid', isEqualTo: uid)
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+    return outgoingRequestsStreamFor(uid);
   }
 
   /// Accept a connection request — create a pair and update both users.
@@ -336,7 +437,8 @@ class PairingService {
     return doc.data();
   }
 
-  /// Leave the current pair.
+  /// Leave the current pair cleanly without failing if partner's user document
+  /// cannot be updated due to strict security rules.
   Future<void> leavePair() async {
     final myDoc = await _userRef.get();
     final myData = myDoc.data() ?? <String, dynamic>{};
@@ -344,36 +446,41 @@ class PairingService {
     if (pairId == null || pairId.isEmpty) {
       throw const PairingException('You are not paired yet.');
     }
+
     final pairRef = _firestore.collection('pairs').doc(pairId);
-    await _firestore.runTransaction((transaction) async {
-      final pairDoc = await transaction.get(pairRef);
-      if (!pairDoc.exists) {
-        transaction.update(_userRef, {
-          'activePairId': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        return;
-      }
-      final members = List<String>.from(pairDoc.data()!['memberUids'] ?? []);
-      final partnerUid = members.firstWhere(
-        (uid) => uid != _uid,
-        orElse: () => '',
-      );
-      transaction.update(pairRef, {
+    final pairDoc = await pairRef.get();
+
+    String partnerUid = '';
+    final batch = _firestore.batch();
+
+    if (pairDoc.exists) {
+      final members = List<String>.from(pairDoc.data()?['memberUids'] ?? []);
+      partnerUid = members.firstWhere((uid) => uid != _uid, orElse: () => '');
+      batch.update(pairRef, {
         'status': 'dissolved',
+        'dissolvedBy': _uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      transaction.update(_userRef, {
-        'activePairId': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      if (partnerUid.isNotEmpty) {
-        transaction.update(_firestore.collection('users').doc(partnerUid), {
+    }
+
+    batch.update(_userRef, {
+      'activePairId': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    // Best-effort: clear partner's activePairId if Firestore rules permit it.
+    if (partnerUid.isNotEmpty) {
+      try {
+        await _firestore.collection('users').doc(partnerUid).update({
           'activePairId': FieldValue.delete(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+      } catch (_) {
+        // Safe to ignore: pair status is already marked 'dissolved'.
       }
-    });
+    }
   }
 }
 

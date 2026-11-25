@@ -21,6 +21,10 @@ final currentUserDocumentProvider =
           .snapshots();
     });
 
+/// Real-time stream of connection requests addressed to the signed-in user.
+///
+/// Explicitly binds to `authStateProvider`'s `user.uid` so switching accounts
+/// immediately re-subscribes with the new UID.
 final incomingRequestsProvider =
     StreamProvider<QuerySnapshot<Map<String, dynamic>>>((ref) {
       final auth = ref.watch(authStateProvider);
@@ -28,9 +32,25 @@ final incomingRequestsProvider =
       if (user == null) {
         return const Stream.empty();
       }
-      return ref.watch(pairingServiceProvider).incomingRequestsStream;
+      return ref
+          .watch(pairingServiceProvider)
+          .incomingRequestsStreamFor(user.uid);
     });
 
+/// Filtered (`status == 'pending'`) and newest-first sorted incoming requests.
+final pendingIncomingRequestsProvider =
+    Provider<AsyncValue<List<QueryDocumentSnapshot<Map<String, dynamic>>>>>((
+      ref,
+    ) {
+      return ref
+          .watch(incomingRequestsProvider)
+          .whenData(
+            (snapshot) =>
+                PairingService.filterAndSortPendingRequests(snapshot.docs),
+          );
+    });
+
+/// Real-time stream of connection requests sent by the signed-in user.
 final outgoingRequestsProvider =
     StreamProvider<QuerySnapshot<Map<String, dynamic>>>((ref) {
       final auth = ref.watch(authStateProvider);
@@ -38,5 +58,7 @@ final outgoingRequestsProvider =
       if (user == null) {
         return const Stream.empty();
       }
-      return ref.watch(pairingServiceProvider).outgoingRequestsStream;
+      return ref
+          .watch(pairingServiceProvider)
+          .outgoingRequestsStreamFor(user.uid);
     });

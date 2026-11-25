@@ -9,12 +9,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../core/notifications/notification_preferences.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../auth/providers/auth_providers.dart';
 import '../../../pairing/providers/pairing_providers.dart';
 import '../../providers/map_providers.dart';
+import '../../services/speed_monitor_service.dart';
 import '../../utils/marker_generator.dart';
 import '../widgets/map_bottom_panel.dart';
 import '../widgets/map_controls.dart';
@@ -57,6 +59,9 @@ class _LiveLocationPageState extends ConsumerState<LiveLocationPage> {
   final List<LatLng> _myTrail = [];
   final List<LatLng> _partnerTrail = [];
   bool _isTrailVisible = true;
+
+  // Speed Alert Monitor (80 km/h sustained + 70 km/h hysteresis)
+  final SpeedMonitorService _speedMonitor = SpeedMonitorService();
 
   // Local state toggles (sharing controls)
   final bool _isSharingLocation = true;
@@ -240,6 +245,36 @@ class _LiveLocationPageState extends ConsumerState<LiveLocationPage> {
             isSharing: _isSharingLocation,
             trail: trailData,
           );
+
+      // Evaluate 80 km/h Speed Alert (sustained >=10s, accuracy <=25m, 70 km/h hysteresis)
+      final userData = userDoc.valueOrNull?.data();
+      final prefs = NotificationPreferences.fromMap(
+        userData?['notificationSettings'] as Map<String, dynamic>?,
+      );
+      final sample = SpeedSample(
+        speedMetersPerSecond: position.speed,
+        accuracyMeters: position.accuracy,
+        timestamp: position.timestamp,
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      final eval = _speedMonitor.evaluate(
+        sample,
+        isSharingLocation: _isSharingLocation,
+        isSpeedAlertEnabled: prefs.speedAlerts,
+      );
+      if (eval.shouldTriggerAlert) {
+        final displayName =
+            (userData?['displayName'] as String?)?.trim() ??
+            ref.read(authServiceProvider).currentUser?.displayName ??
+            'Your partner';
+        _speedMonitor.recordSpeedAlertEvent(
+          pairId: activePairId,
+          uid: uid,
+          displayName: displayName,
+          sample: sample,
+        );
+      }
     }
 
     if (animateCamera && _mapController != null) {
@@ -457,11 +492,13 @@ class _LiveLocationPageState extends ConsumerState<LiveLocationPage> {
         'Partner';
     final partnerPhoto = partnerProfileData['photoURL'] as String?;
 
-    final userName = userData['displayName'] as String? ??
+    final userName =
+        userData['displayName'] as String? ??
         userData['username'] as String? ??
         ref.read(authServiceProvider).currentUser?.displayName ??
         'You';
-    final userPhoto = userData['photoURL'] as String? ??
+    final userPhoto =
+        userData['photoURL'] as String? ??
         ref.read(authServiceProvider).currentUser?.photoURL;
     _updateUserMarker(userName, userPhoto);
 
@@ -526,17 +563,20 @@ class _LiveLocationPageState extends ConsumerState<LiveLocationPage> {
     bool isPartnerCharging = false;
 
     if (partnerDeviceData != null) {
-      final isPartnerSharingBatt = partnerDeviceData['isSharing'] == true;
+      final isPartnerSharingBatt = partnerDeviceData['isSharing'] != false;
       if (isPartnerSharingBatt) {
-        partnerBatteryLevel = partnerDeviceData['batteryLevel'] as int?;
+        partnerBatteryLevel = (partnerDeviceData['batteryLevel'] as num?)
+            ?.toInt();
         isPartnerCharging = partnerDeviceData['isCharging'] == true;
       }
     }
 
-    // Clearance above floating GlassBottomNavBar (68 container + 16 bottom padding + system inset)
-    // Positioned slightly lower (8px gap) so it sits comfortably close without overlapping
+    // MainShellScaffold uses `extendBody: true` with `bottomNavigationBar`,
+    // so MediaQuery.padding.bottom ALREADY includes GlassBottomNavBar's height
+    // (68px bar + 16px margin + system inset). Adding 12px places the card
+    // cleanly right above the navbar with a comfortable gap.
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final panelBottom = bottomPadding + 68.0 + 16.0 + 8.0;
+    final panelBottom = bottomPadding + 12.0;
 
     final markers = _buildMarkers(
       partnerLatLng: partnerLatLng,

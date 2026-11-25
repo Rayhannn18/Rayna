@@ -41,7 +41,9 @@ class MapHeaderBar extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white.withValues(alpha: 0.90),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.white.withValues(alpha: 0.95)),
+              border: Border.all(
+                color: AppColors.white.withValues(alpha: 0.95),
+              ),
             ),
             child: Row(
               children: [
@@ -50,7 +52,9 @@ class MapHeaderBar extends StatelessWidget {
                   radius: 18,
                   backgroundColor: AppColors.dustyRose.withValues(alpha: 0.16),
                   child: Icon(
-                    paired ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    paired
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
                     color: AppColors.dustyRose,
                     size: 18,
                   ),
@@ -67,7 +71,9 @@ class MapHeaderBar extends StatelessWidget {
                         children: [
                           Text(
                             paired
-                                ? (partnerName != null ? 'With $partnerName' : 'Couple Space')
+                                ? (partnerName != null
+                                      ? 'With $partnerName'
+                                      : 'Couple Space')
                                 : 'Rayna Live Location',
                             style: AppTextStyles.labelLarge.copyWith(
                               fontWeight: FontWeight.w700,
@@ -81,8 +87,8 @@ class MapHeaderBar extends StatelessWidget {
                       Text(
                         paired
                             ? (isPartnerSharing
-                                ? 'Your partner is sharing location'
-                                : 'Together, even from afar')
+                                  ? 'Your partner is sharing location'
+                                  : 'Together, even from afar')
                             : 'Connect with your partner to share',
                         style: AppTextStyles.bodySmall.copyWith(
                           fontSize: 11,
@@ -97,7 +103,10 @@ class MapHeaderBar extends StatelessWidget {
 
                 // Sharing Indicator Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: isSharingLocation
                         ? AppColors.success.withValues(alpha: 0.14)
@@ -143,10 +152,11 @@ class MapHeaderBar extends StatelessWidget {
       width: 7,
       height: 7,
       decoration: BoxDecoration(
-        color: paired && isPartnerSharing ? AppColors.success : AppColors.dustyRose,
+        color: paired && isPartnerSharing
+            ? AppColors.success
+            : AppColors.dustyRose,
         shape: BoxShape.circle,
       ),
     );
   }
 }
-

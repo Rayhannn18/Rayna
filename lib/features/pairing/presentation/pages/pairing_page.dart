@@ -164,8 +164,8 @@ class _PairingPageState extends ConsumerState<PairingPage>
 
   @override
   Widget build(BuildContext context) {
-    final incomingRequests = ref.watch(incomingRequestsProvider);
-    final requestCount = incomingRequests.valueOrNull?.docs.length ?? 0;
+    final incomingRequests = ref.watch(pendingIncomingRequestsProvider);
+    final requestCount = incomingRequests.valueOrNull?.length ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -245,7 +245,8 @@ class _PairingPageState extends ConsumerState<PairingPage>
 
   Widget _buildPairingCodeTab() {
     final userDoc = ref.watch(currentUserDocumentProvider);
-    final currentCode = _localPairingCode ??
+    final currentCode =
+        _localPairingCode ??
         (userDoc.valueOrNull?.data()?['pairingCode'] as String? ?? '');
 
     return ListView(

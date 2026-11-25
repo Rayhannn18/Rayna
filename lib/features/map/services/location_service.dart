@@ -9,7 +9,7 @@ class LocationService {
   Position? _lastSyncedPosition;
 
   LocationService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Check GPS service and request location permissions gracefully
   Future<bool> checkAndRequestPermission() async {
@@ -51,8 +51,28 @@ class LocationService {
     }
   }
 
-  /// Real-time position stream
-  Stream<Position> getPositionStream() {
+  /// Real-time position stream.
+  ///
+  /// When [enableForegroundService] is true on Android, attaches a transparent
+  /// foreground notification so live location and Speed Alert stay active while
+  /// the app is in the background (stopping cleanly when sharing is turned off).
+  Stream<Position> getPositionStream({bool enableForegroundService = false}) {
+    if (enableForegroundService) {
+      return Geolocator.getPositionStream(
+        locationSettings: AndroidSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5,
+          intervalDuration: const Duration(seconds: 4),
+          foregroundNotificationConfig: const ForegroundNotificationConfig(
+            notificationTitle: 'Rayna Live Location',
+            notificationText: 'Sharing your live location with your partner',
+            enableWakeLock: false,
+            setOngoing: true,
+          ),
+        ),
+      );
+    }
+
     return Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -88,15 +108,17 @@ class LocationService {
       }
     }
 
-    _lastFirestoreSync = now;
-    _lastSyncedPosition = position;
+    final speedMs = position.speed > 0 ? position.speed : 0.0;
+    final speedKmh = double.parse((speedMs * 3.6).toStringAsFixed(1));
 
     try {
       final updateData = <String, dynamic>{
         'latitude': position.latitude,
         'longitude': position.longitude,
         'accuracy': position.accuracy,
-        'speed': position.speed,
+        'speed': speedMs,
+        'speedKmh': speedKmh,
+        'speedAccuracy': position.speedAccuracy,
         'heading': position.heading,
         'timestamp': FieldValue.serverTimestamp(),
         'isSharing': isSharing,
@@ -112,6 +134,9 @@ class LocationService {
           .collection('locations')
           .doc(uid)
           .set(updateData, SetOptions(merge: true));
+
+      _lastFirestoreSync = now;
+      _lastSyncedPosition = position;
     } catch (e) {
       // Fail silently or handle network disconnects gracefully
     }
@@ -131,10 +156,9 @@ class LocationService {
           .collection('locations')
           .doc(uid)
           .set({
-        'isSharing': isSharing,
-        'timestamp': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+            'isSharing': isSharing,
+            'timestamp': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
     } catch (_) {}
   }
 }
-
